@@ -7,45 +7,51 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 215 25% 12%;
+    --foreground: 218 50% 10%;
 
     --card: 0 0% 100%;
-    --card-foreground: 215 25% 12%;
+    --card-foreground: 218 50% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 215 25% 12%;
+    --popover-foreground: 218 50% 10%;
 
-    --primary: 213 94% 48%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 218 60% 28%;
+    --primary-foreground: 0 0% 95%;
 
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 215 25% 12%;
+    --primary-light: 218 55% 45%;
+    --primary-dark: 218 65% 18%;
 
-    --muted: 210 20% 96%;
-    --muted-foreground: 215 14% 46%;
+    --secondary: 215 30% 94%;
+    --secondary-foreground: 218 50% 10%;
 
-    --accent: 213 94% 94%;
-    --accent-foreground: 213 94% 30%;
+    --muted: 215 20% 95%;
+    --muted-foreground: 218 15% 46%;
+
+    --accent: 218 50% 90%;
+    --accent-foreground: 218 60% 25%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 214 20% 90%;
-    --input: 214 20% 90%;
-    --ring: 213 94% 48%;
+    --border: 218 20% 88%;
+    --input: 218 20% 88%;
+    --ring: 218 60% 28%;
 
     --radius: 0.75rem;
 
-    --nav-bg: 215 25% 8%;
-    --nav-foreground: 0 0% 100%;
+    --nav-bg: 218 65% 14%;
+    --nav-foreground: 210 20% 90%;
 
-    --hero-overlay: 213 94% 20%;
+    --hero-overlay: 218 65% 14%;
 
     --badge-hot: 15 90% 55%;
-    --badge-featured: 213 94% 48%;
+    --badge-featured: 218 60% 40%;
 
-    --footer-bg: 215 25% 8%;
-    --footer-foreground: 210 20% 80%;
+    --footer-bg: 218 65% 10%;
+    --footer-foreground: 210 20% 75%;
+
+    --silver: 220 10% 78%;
+    --silver-light: 220 10% 90%;
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -58,25 +64,25 @@
   }
 
   .dark {
-    --background: 215 25% 8%;
+    --background: 218 65% 8%;
     --foreground: 210 40% 98%;
-    --card: 215 25% 12%;
+    --card: 218 60% 12%;
     --card-foreground: 210 40% 98%;
-    --popover: 215 25% 12%;
+    --popover: 218 60% 12%;
     --popover-foreground: 210 40% 98%;
-    --primary: 213 94% 55%;
+    --primary: 218 55% 50%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 217 32% 17%;
+    --secondary: 218 40% 17%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 217 32% 17%;
+    --muted: 218 40% 17%;
     --muted-foreground: 215 20% 65%;
-    --accent: 217 32% 17%;
+    --accent: 218 40% 20%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62% 30%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217 32% 17%;
-    --input: 217 32% 17%;
-    --ring: 213 94% 55%;
+    --border: 218 40% 20%;
+    --input: 218 40% 20%;
+    --ring: 218 55% 50%;
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
@@ -107,6 +113,12 @@
   .font-body {
     font-family: 'Inter', sans-serif;
   }
+  .text-silver {
+    color: hsl(var(--silver));
+  }
+  .bg-silver {
+    background-color: hsl(var(--silver-light));
+  }
 }
 
 @layer components {
@@ -117,19 +129,34 @@
     @apply transition-transform duration-300 hover:scale-105;
   }
   .hover-glow {
-    @apply transition-shadow duration-300 hover:shadow-[0_0_20px_hsl(213_94%_48%/0.3)];
+    @apply transition-shadow duration-300;
+    &:hover {
+      box-shadow: 0 0 25px hsl(218 60% 28% / 0.3);
+    }
   }
   .badge-hot {
-    @apply bg-[hsl(var(--badge-hot))] text-[hsl(var(--primary-foreground))] text-xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wider;
+    @apply text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider;
+    background-color: hsl(var(--badge-hot));
+    color: hsl(0 0% 100%);
   }
   .badge-featured {
-    @apply bg-[hsl(var(--badge-featured))] text-[hsl(var(--primary-foreground))] text-xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wider;
+    @apply text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider;
+    background-color: hsl(var(--badge-featured));
+    color: hsl(0 0% 100%);
   }
   .section-padding {
     @apply py-16 md:py-24 px-4 md:px-8;
   }
   .glass-card {
-    @apply bg-card/80 backdrop-blur-md border border-border/50 rounded-xl;
+    @apply backdrop-blur-md rounded-xl;
+    background: hsl(var(--card) / 0.8);
+    border: 1px solid hsl(var(--border) / 0.5);
+  }
+  .gradient-navy {
+    background: linear-gradient(135deg, hsl(218 65% 14%), hsl(218 60% 22%));
+  }
+  .gradient-silver {
+    background: linear-gradient(135deg, hsl(220 10% 78%), hsl(220 15% 92%));
   }
 }
 
