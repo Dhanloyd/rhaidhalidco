@@ -10,6 +10,8 @@ import FoundersPage from "./pages/FoundersPage";
 import ActivitiesPage from "./pages/ActivitiesPage";
 import PlayersPage from "./pages/PlayersPage";
 import ShopPage from "./pages/ShopPage";
+import ApparelShopPage from "./pages/ApparelShopPage";
+import FoodShopPage from "./pages/FoodShopPage";
 import ContactPage from "./pages/ContactPage";
 import NotFound from "./pages/NotFound";
 
