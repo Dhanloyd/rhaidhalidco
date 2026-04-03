@@ -46,7 +46,7 @@ const ShopPage = () => (
             </Button>
           </Link>
           <Link to="/shop/food">
-            <Button size="lg" variant="outline" className="border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 font-heading uppercase tracking-wider">
+            <Button size="lg" variant="outline" className="border-primary-foreground/50 font-heading uppercase tracking-wider bg-transparent hover:bg-primary-foreground/10" style={{ color: "hsl(0 0% 100%)" }}>
               🍔 Food & Drinks
             </Button>
           </Link>
