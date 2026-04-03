@@ -36,7 +36,7 @@ const HomePage = () => {
                 </Button>
               </Link>
               <Link to="/activities">
-                <Button size="lg" variant="outline" className="font-heading uppercase tracking-wider gap-2" style={{ borderColor: "hsl(0 0% 100% / 0.5)", color: "hsl(0 0% 100%)" }}>
+                <Button size="lg" variant="outline" className="font-heading uppercase tracking-wider gap-2 bg-transparent hover:bg-white/10" style={{ borderColor: "hsl(0 0% 100% / 0.5)", color: "hsl(0 0% 100%)" }}>
                   <Ticket size={18} /> Get Tickets
                 </Button>
               </Link>
