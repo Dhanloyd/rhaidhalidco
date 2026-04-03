@@ -82,6 +82,7 @@ const Footer = () => {
           <div className="flex gap-6 text-xs opacity-60">
             <a href="#" className="hover:opacity-100 transition-opacity">Privacy Policy</a>
             <a href="#" className="hover:opacity-100 transition-opacity">Terms of Service</a>
+            <Link to="/admin/login" className="hover:opacity-100 transition-opacity">Admin</Link>
           </div>
         </div>
       </div>
