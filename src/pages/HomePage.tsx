@@ -23,20 +23,20 @@ const HomePage = () => {
         <div className="absolute inset-0 bg-gradient-to-r from-[hsl(218_65%_10%/0.9)] via-[hsl(218_65%_14%/0.7)] to-transparent" />
         <div className="relative container mx-auto px-4 z-10">
           <div className="max-w-2xl">
-            <h1 className="font-heading text-5xl md:text-7xl lg:text-8xl uppercase leading-none tracking-tight text-primary-foreground mb-4 animate-fade-in-up">
-              RaidKhalid<br /><span className="text-primary-light">&amp; Co.</span>
+            <h1 className="font-heading text-5xl md:text-7xl lg:text-8xl uppercase leading-none tracking-tight mb-4 animate-fade-in-up" style={{ color: "hsl(0 0% 100%)" }}>
+              RaidKhalid<br /><span style={{ color: "hsl(210 100% 75%)" }}>&amp; Co.</span>
             </h1>
-            <p className="text-lg md:text-xl text-primary-foreground/80 mb-8 max-w-lg animate-fade-in-up" style={{ animationDelay: "0.2s" }}>
+            <p className="text-lg md:text-xl mb-8 max-w-lg animate-fade-in-up" style={{ color: "hsl(0 0% 90%)", animationDelay: "0.2s" }}>
               Elevating basketball culture through passion, excellence, and community.
             </p>
             <div className="flex flex-wrap gap-4 animate-fade-in-up" style={{ animationDelay: "0.4s" }}>
               <Link to="/shop">
-                <Button size="lg" className="bg-primary hover:bg-primary-light text-primary-foreground font-heading uppercase tracking-wider gap-2">
+                <Button size="lg" className="font-heading uppercase tracking-wider gap-2" style={{ backgroundColor: "hsl(218 60% 50%)", color: "hsl(0 0% 100%)" }}>
                   <ShoppingCart size={18} /> Shop Now
                 </Button>
               </Link>
               <Link to="/activities">
-                <Button size="lg" variant="outline" className="border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 font-heading uppercase tracking-wider gap-2">
+                <Button size="lg" variant="outline" className="font-heading uppercase tracking-wider gap-2" style={{ borderColor: "hsl(0 0% 100% / 0.5)", color: "hsl(0 0% 100%)" }}>
                   <Ticket size={18} /> Get Tickets
                 </Button>
               </Link>
