@@ -1,19 +1,10 @@
-import { LayoutDashboard, ShoppingCart, Package, CreditCard, LogOut, Home } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, Package, CreditCard, LogOut, Home, Newspaper, Star } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import logo from "@/assets/logo.jpg";
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarFooter,
-  useSidebar,
+  Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter, useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 
@@ -21,6 +12,8 @@ const navItems = [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
   { title: "Orders", url: "/admin/orders", icon: ShoppingCart },
   { title: "Products", url: "/admin/products", icon: Package },
+  { title: "News", url: "/admin/news", icon: Newspaper },
+  { title: "Highlights", url: "/admin/highlights", icon: Star },
   { title: "POS", url: "/admin/pos", icon: CreditCard },
 ];
 
@@ -45,17 +38,13 @@ export function AdminSidebar() {
             </div>
           )}
         </div>
-
         <SidebarGroup>
           <SidebarGroupLabel>Menu</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.url)}
-                  >
+                  <SidebarMenuButton asChild isActive={isActive(item.url)}>
                     <NavLink to={item.url} end className="hover:bg-muted/50" activeClassName="bg-primary/10 text-primary font-medium">
                       <item.icon className="mr-2 h-4 w-4" />
                       {!collapsed && <span>{item.title}</span>}
@@ -67,7 +56,6 @@ export function AdminSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-
       <SidebarFooter className="bg-card border-t border-border p-3 space-y-2">
         <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground" onClick={() => navigate("/")}>
           <Home size={16} /> {!collapsed && "Back to Site"}
@@ -75,9 +63,7 @@ export function AdminSidebar() {
         <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-destructive hover:text-destructive" onClick={signOut}>
           <LogOut size={16} /> {!collapsed && "Sign Out"}
         </Button>
-        {!collapsed && user && (
-          <p className="text-xs text-muted-foreground truncate px-2">{user.email}</p>
-        )}
+        {!collapsed && user && <p className="text-xs text-muted-foreground truncate px-2">{user.email}</p>}
       </SidebarFooter>
     </Sidebar>
   );
