@@ -14,6 +14,7 @@ import ActivitiesPage from "./pages/ActivitiesPage";
 import PlayersPage from "./pages/PlayersPage";
 import ShopPage from "./pages/ShopPage";
 import CartPage from "./pages/CartPage";
+
 import MyOrdersPage from "./pages/MyOrdersPage";
 import ContactPage from "./pages/ContactPage";
 import SignInPage from "./pages/SignInPage";
