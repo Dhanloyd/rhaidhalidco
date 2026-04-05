@@ -91,9 +91,11 @@ const CartPage = () => {
                 <span className="font-heading text-lg text-foreground">Total</span>
                 <span className="font-heading text-2xl text-primary">₱{totalPrice.toLocaleString()}</span>
               </div>
-              <Button onClick={handleCheckout} disabled={processing} className="w-full bg-primary text-primary-foreground hover:bg-primary-light font-heading uppercase tracking-wider">
-                {processing ? "Processing..." : "Place Order"}
-              </Button>
+              <Link to="/checkout">
+                <Button className="w-full bg-primary text-primary-foreground hover:bg-primary-light font-heading uppercase tracking-wider">
+                  Proceed to Checkout
+                </Button>
+              </Link>
             </div>
           </div>
         )}
