@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X, ShoppingCart, User, LogOut } from "lucide-react";
+import { Menu, X, ShoppingCart, User, LogOut, Heart, MapPin, Package, ChevronDown } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useCart } from "@/hooks/useCart";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import logo from "@/assets/logo.jpg";
 
 const navLinks = [
@@ -35,17 +36,40 @@ const Navbar = () => {
                 location.pathname === link.path ? "text-primary-foreground bg-primary/20" : "text-nav-foreground/80 hover:text-primary-foreground hover:bg-primary/10"
               }`}>{link.label}</Link>
           ))}
-          <Link to="/cart" className="ml-3 p-2 text-nav-foreground/80 hover:text-primary-foreground transition-colors relative">
+
+          <Link to="/wishlist" className="ml-2 p-2 text-nav-foreground/80 hover:text-primary-foreground transition-colors">
+            <Heart size={20} />
+          </Link>
+
+          <Link to="/cart" className="p-2 text-nav-foreground/80 hover:text-primary-foreground transition-colors relative">
             <ShoppingCart size={20} />
             {totalItems > 0 && (
               <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">{totalItems}</span>
             )}
           </Link>
+
           {user ? (
-            <div className="flex items-center gap-1 ml-2">
-              <Link to="/my-orders" className="p-2 text-nav-foreground/80 hover:text-primary-foreground transition-colors"><User size={20} /></Link>
-              <button onClick={signOut} className="p-2 text-nav-foreground/80 hover:text-primary-foreground transition-colors"><LogOut size={18} /></button>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger className="ml-2 flex items-center gap-1 px-3 py-2 text-sm font-medium text-nav-foreground/80 hover:text-primary-foreground transition-colors rounded-md hover:bg-primary/10">
+                <User size={18} />
+                <ChevronDown size={14} />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem asChild>
+                  <Link to="/my-orders" className="gap-2"><Package size={14} /> My Orders</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/wishlist" className="gap-2"><Heart size={14} /> Wishlist</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/addresses" className="gap-2"><MapPin size={14} /> Addresses</Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={signOut} className="gap-2 text-destructive">
+                  <LogOut size={14} /> Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : (
             <Link to="/signin" className="ml-2 px-4 py-2 text-sm font-medium tracking-wide uppercase bg-primary/20 text-primary-foreground rounded-md hover:bg-primary/30 transition-colors">Sign In</Link>
           )}
@@ -65,13 +89,17 @@ const Navbar = () => {
                   location.pathname === link.path ? "text-primary-foreground bg-primary/20" : "text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10"
                 }`}>{link.label}</Link>
             ))}
-            <Link to="/cart" onClick={() => setOpen(false)} className="px-4 py-3 text-sm font-medium tracking-wide uppercase text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10 rounded-md">
-              Cart {totalItems > 0 && `(${totalItems})`}
+            <Link to="/cart" onClick={() => setOpen(false)} className="px-4 py-3 text-sm font-medium tracking-wide uppercase text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10 rounded-md flex items-center gap-2">
+              <ShoppingCart size={16} /> Cart {totalItems > 0 && `(${totalItems})`}
+            </Link>
+            <Link to="/wishlist" onClick={() => setOpen(false)} className="px-4 py-3 text-sm font-medium tracking-wide uppercase text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10 rounded-md flex items-center gap-2">
+              <Heart size={16} /> Wishlist
             </Link>
             {user ? (
               <>
-                <Link to="/my-orders" onClick={() => setOpen(false)} className="px-4 py-3 text-sm font-medium tracking-wide uppercase text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10 rounded-md">My Orders</Link>
-                <button onClick={() => { signOut(); setOpen(false); }} className="px-4 py-3 text-sm font-medium tracking-wide uppercase text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10 rounded-md text-left">Sign Out</button>
+                <Link to="/my-orders" onClick={() => setOpen(false)} className="px-4 py-3 text-sm font-medium tracking-wide uppercase text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10 rounded-md flex items-center gap-2"><Package size={16} /> My Orders</Link>
+                <Link to="/addresses" onClick={() => setOpen(false)} className="px-4 py-3 text-sm font-medium tracking-wide uppercase text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10 rounded-md flex items-center gap-2"><MapPin size={16} /> Addresses</Link>
+                <button onClick={() => { signOut(); setOpen(false); }} className="px-4 py-3 text-sm font-medium tracking-wide uppercase text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10 rounded-md text-left flex items-center gap-2"><LogOut size={16} /> Sign Out</button>
               </>
             ) : (
               <Link to="/signin" onClick={() => setOpen(false)} className="px-4 py-3 text-sm font-medium tracking-wide uppercase text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10 rounded-md">Sign In</Link>
