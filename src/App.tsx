@@ -14,7 +14,9 @@ import ActivitiesPage from "./pages/ActivitiesPage";
 import PlayersPage from "./pages/PlayersPage";
 import ShopPage from "./pages/ShopPage";
 import CartPage from "./pages/CartPage";
-
+import CheckoutPage from "./pages/CheckoutPage";
+import WishlistPage from "./pages/WishlistPage";
+import AddressesPage from "./pages/AddressesPage";
 import MyOrdersPage from "./pages/MyOrdersPage";
 import ContactPage from "./pages/ContactPage";
 import SignInPage from "./pages/SignInPage";
@@ -23,6 +25,11 @@ import AdminLoginPage from "./pages/admin/AdminLoginPage";
 import DashboardPage from "./pages/admin/DashboardPage";
 import OrdersPage from "./pages/admin/OrdersPage";
 import ProductsPage from "./pages/admin/ProductsPage";
+import InventoryPage from "./pages/admin/InventoryPage";
+import AnalyticsPage from "./pages/admin/AnalyticsPage";
+import VouchersPage from "./pages/admin/VouchersPage";
+import FlashSalesPage from "./pages/admin/FlashSalesPage";
+import SuppliersPage from "./pages/admin/SuppliersPage";
 import NewsManagementPage from "./pages/admin/NewsManagementPage";
 import HighlightsPage from "./pages/admin/HighlightsPage";
 import POSPage from "./pages/admin/POSPage";
@@ -39,7 +46,7 @@ const App = () => (
         <AuthProvider>
           <CartProvider>
             <Routes>
-              {/* Public site */}
+              {/* Public */}
               <Route path="/" element={<Layout><HomePage /></Layout>} />
               <Route path="/about" element={<Layout><AboutPage /></Layout>} />
               <Route path="/founders" element={<Layout><FoundersPage /></Layout>} />
@@ -47,6 +54,9 @@ const App = () => (
               <Route path="/players" element={<Layout><PlayersPage /></Layout>} />
               <Route path="/shop" element={<Layout><ShopPage /></Layout>} />
               <Route path="/cart" element={<Layout><CartPage /></Layout>} />
+              <Route path="/checkout" element={<Layout><CheckoutPage /></Layout>} />
+              <Route path="/wishlist" element={<Layout><WishlistPage /></Layout>} />
+              <Route path="/addresses" element={<Layout><AddressesPage /></Layout>} />
               <Route path="/my-orders" element={<Layout><MyOrdersPage /></Layout>} />
               <Route path="/contact" element={<Layout><ContactPage /></Layout>} />
 
@@ -59,9 +69,14 @@ const App = () => (
               <Route path="/admin" element={<AdminLayout><DashboardPage /></AdminLayout>} />
               <Route path="/admin/orders" element={<AdminLayout><OrdersPage /></AdminLayout>} />
               <Route path="/admin/products" element={<AdminLayout><ProductsPage /></AdminLayout>} />
+              <Route path="/admin/inventory" element={<AdminLayout><InventoryPage /></AdminLayout>} />
+              <Route path="/admin/pos" element={<AdminLayout><POSPage /></AdminLayout>} />
+              <Route path="/admin/analytics" element={<AdminLayout><AnalyticsPage /></AdminLayout>} />
+              <Route path="/admin/vouchers" element={<AdminLayout><VouchersPage /></AdminLayout>} />
+              <Route path="/admin/flash-sales" element={<AdminLayout><FlashSalesPage /></AdminLayout>} />
+              <Route path="/admin/suppliers" element={<AdminLayout><SuppliersPage /></AdminLayout>} />
               <Route path="/admin/news" element={<AdminLayout><NewsManagementPage /></AdminLayout>} />
               <Route path="/admin/highlights" element={<AdminLayout><HighlightsPage /></AdminLayout>} />
-              <Route path="/admin/pos" element={<AdminLayout><POSPage /></AdminLayout>} />
 
               <Route path="*" element={<NotFound />} />
             </Routes>
