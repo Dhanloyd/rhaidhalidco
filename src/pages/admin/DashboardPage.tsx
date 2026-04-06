@@ -1,52 +1,69 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DollarSign, ShoppingCart, Package, TrendingUp } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { DollarSign, ShoppingCart, Package, AlertTriangle } from "lucide-react";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import { toast } from "sonner";
 
 const DashboardPage = () => {
-  const [stats, setStats] = useState({ totalOrders: 0, totalRevenue: 0, totalProducts: 0, pendingOrders: 0 });
+  const [stats, setStats] = useState({ completedRevenue: 0, completedOrders: 0, totalProducts: 0, lowStockCount: 0 });
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [ordersByStatus, setOrdersByStatus] = useState<any[]>([]);
+  const [lowStockProducts, setLowStockProducts] = useState<any[]>([]);
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     const [ordersRes, productsRes] = await Promise.all([
       supabase.from("orders").select("*").order("created_at", { ascending: false }),
-      supabase.from("products").select("id"),
+      supabase.from("products").select("id, name, stock_quantity, low_stock_threshold"),
     ]);
 
     const orders = ordersRes.data || [];
-    const totalRevenue = orders.reduce((sum, o) => sum + Number(o.total), 0);
-    const pendingOrders = orders.filter((o) => o.status === "pending").length;
+    const products = productsRes.data || [];
+
+    // Only completed orders for revenue
+    const completedOrders = orders.filter((o) => o.status === "completed");
+    const completedRevenue = completedOrders.reduce((sum, o) => sum + Number(o.total), 0);
+
+    // Low stock products
+    const lowStock = products.filter((p) => p.stock_quantity <= p.low_stock_threshold && p.stock_quantity > 0);
+    const outOfStock = products.filter((p) => p.stock_quantity === 0);
+
+    if (lowStock.length > 0) {
+      toast.warning(`${lowStock.length} product(s) running low on stock!`);
+    }
+    if (outOfStock.length > 0) {
+      toast.error(`${outOfStock.length} product(s) are out of stock!`);
+    }
 
     setStats({
-      totalOrders: orders.length,
-      totalRevenue,
-      totalProducts: productsRes.data?.length || 0,
-      pendingOrders,
+      completedRevenue,
+      completedOrders: completedOrders.length,
+      totalProducts: products.length,
+      lowStockCount: lowStock.length + outOfStock.length,
     });
 
     setRecentOrders(orders.slice(0, 5));
+    setLowStockProducts([...outOfStock, ...lowStock].slice(0, 5));
 
     const statusCounts: Record<string, number> = {};
-    orders.forEach((o) => {
-      statusCounts[o.status] = (statusCounts[o.status] || 0) + 1;
-    });
+    orders.forEach((o) => { statusCounts[o.status] = (statusCounts[o.status] || 0) + 1; });
     setOrdersByStatus(Object.entries(statusCounts).map(([name, value]) => ({ name, value })));
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchDashboardData();
+    const interval = setInterval(fetchDashboardData, 30000); // Auto-refresh every 30s
+    return () => clearInterval(interval);
+  }, [fetchDashboardData]);
 
   const statCards = [
-    { title: "Total Revenue", value: `₱${stats.totalRevenue.toLocaleString()}`, icon: DollarSign, color: "text-green-600" },
-    { title: "Total Orders", value: stats.totalOrders, icon: ShoppingCart, color: "text-primary" },
-    { title: "Products", value: stats.totalProducts, icon: Package, color: "text-orange-500" },
-    { title: "Pending Orders", value: stats.pendingOrders, icon: TrendingUp, color: "text-yellow-500" },
+    { title: "Completed Revenue", value: `₱${stats.completedRevenue.toLocaleString()}`, icon: DollarSign, color: "text-green-600" },
+    { title: "Completed Orders", value: stats.completedOrders, icon: ShoppingCart, color: "text-primary" },
+    { title: "Total Products", value: stats.totalProducts, icon: Package, color: "text-orange-500" },
+    { title: "Low Stock Alerts", value: stats.lowStockCount, icon: AlertTriangle, color: "text-yellow-500" },
   ];
 
-  const PIE_COLORS = ["hsl(218, 60%, 28%)", "hsl(218, 55%, 45%)", "hsl(15, 90%, 55%)", "hsl(120, 40%, 50%)"];
+  const PIE_COLORS = ["hsl(218, 60%, 28%)", "hsl(218, 55%, 45%)", "hsl(15, 90%, 55%)", "hsl(120, 40%, 50%)", "hsl(45, 90%, 50%)", "hsl(0, 70%, 50%)"];
 
   return (
     <div className="space-y-6">
@@ -67,7 +84,6 @@ const DashboardPage = () => {
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* Orders by Status */}
         <Card>
           <CardHeader>
             <CardTitle className="font-heading text-lg uppercase tracking-wider">Orders by Status</CardTitle>
@@ -77,9 +93,7 @@ const DashboardPage = () => {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie data={ordersByStatus} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
-                    {ordersByStatus.map((_, i) => (
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                    ))}
+                    {ordersByStatus.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                   </Pie>
                   <Tooltip />
                 </PieChart>
@@ -90,7 +104,6 @@ const DashboardPage = () => {
           </CardContent>
         </Card>
 
-        {/* Recent Orders */}
         <Card>
           <CardHeader>
             <CardTitle className="font-heading text-lg uppercase tracking-wider">Recent Orders</CardTitle>
@@ -122,6 +135,31 @@ const DashboardPage = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Low Stock Alerts */}
+      {lowStockProducts.length > 0 && (
+        <Card className="border-yellow-500/30">
+          <CardHeader>
+            <CardTitle className="font-heading text-lg uppercase tracking-wider flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-500" /> Low Stock Alerts
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {lowStockProducts.map((p) => (
+                <div key={p.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <span className="text-sm font-medium text-foreground">{p.name}</span>
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                    p.stock_quantity === 0 ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"
+                  }`}>
+                    {p.stock_quantity === 0 ? "Out of Stock" : `${p.stock_quantity} left`}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

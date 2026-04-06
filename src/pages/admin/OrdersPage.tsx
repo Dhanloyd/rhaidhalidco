@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Search, Filter, Eye, Printer } from "lucide-react";
+import { Search, Filter, Eye, Trash2 } from "lucide-react";
 
 const statusFlow = ["pending", "confirmed", "packed", "shipped", "delivered", "completed", "cancelled"];
 
@@ -31,8 +31,12 @@ const OrdersPage = () => {
     else { toast.success(`Status → ${status}`); fetchOrders(); }
   };
 
-  const cancelOrder = async (id: string) => {
-    await updateStatus(id, "cancelled");
+  const deleteOrder = async (id: string) => {
+    // Delete order items first, then order
+    await supabase.from("order_items").delete().eq("order_id", id);
+    const { error } = await supabase.from("orders").delete().eq("id", id);
+    if (error) toast.error("Failed to delete order");
+    else { toast.success("Order deleted"); fetchOrders(); }
   };
 
   const filtered = orders.filter((o) => {
@@ -51,10 +55,9 @@ const OrdersPage = () => {
     return map[s] || "bg-muted text-muted-foreground";
   };
 
-  // Compute profit
   const computeProfit = (order: any) => {
     const items = Array.isArray(order.items) ? order.items : [];
-    return items.reduce((s: number, i: any) => s + (i.price || 0) * (i.quantity || 1), 0) * 0.3; // 30% margin estimate
+    return items.reduce((s: number, i: any) => s + (i.price || 0) * (i.quantity || 1), 0) * 0.3;
   };
 
   return (
@@ -121,6 +124,7 @@ const OrdersPage = () => {
                               {statusFlow.map((s) => <SelectItem key={s} value={s} className="capitalize text-xs">{s}</SelectItem>)}
                             </SelectContent>
                           </Select>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => { if (confirm("Delete this order?")) deleteOrder(order.id); }}><Trash2 size={14} /></Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -143,6 +147,7 @@ const OrdersPage = () => {
                 <div><span className="text-muted-foreground">Date:</span><p className="text-foreground">{new Date(viewOrder.created_at).toLocaleString()}</p></div>
                 <div><span className="text-muted-foreground">Customer:</span><p className="font-medium text-foreground">{viewOrder.customer_name}</p></div>
                 <div><span className="text-muted-foreground">Status:</span><p><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor(viewOrder.status)}`}>{viewOrder.status}</span></p></div>
+                <div><span className="text-muted-foreground">Payment:</span><p className="text-foreground uppercase text-xs">{viewOrder.payment_method}</p></div>
                 {viewOrder.shipping_address && <div className="col-span-2"><span className="text-muted-foreground">Ship To:</span><p className="text-foreground">{viewOrder.shipping_name} · {viewOrder.shipping_phone}<br />{viewOrder.shipping_address}</p></div>}
                 {viewOrder.tracking_number && <div><span className="text-muted-foreground">Tracking:</span><p className="font-mono text-foreground">{viewOrder.tracking_number}</p></div>}
               </div>
@@ -163,8 +168,9 @@ const OrdersPage = () => {
               </div>
               <div className="flex gap-2">
                 {viewOrder.status !== "cancelled" && viewOrder.status !== "completed" && (
-                  <Button variant="destructive" size="sm" onClick={() => { cancelOrder(viewOrder.id); setViewOrder(null); }}>Cancel Order</Button>
+                  <Button variant="destructive" size="sm" onClick={() => { updateStatus(viewOrder.id, "cancelled"); setViewOrder(null); }}>Cancel Order</Button>
                 )}
+                <Button variant="destructive" size="sm" onClick={() => { deleteOrder(viewOrder.id); setViewOrder(null); }}>Delete Order</Button>
               </div>
             </div>
           )}
