@@ -7,8 +7,9 @@ interface AuthContextType {
   user: User | null;
   isAdmin: boolean;
   loading: boolean;
+  displayName: string | null;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, displayName?: string, phone?: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -19,6 +20,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [displayName, setDisplayName] = useState<string | null>(null);
 
   const checkAdmin = async (userId: string) => {
     const { data } = await supabase
@@ -30,15 +32,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsAdmin(!!data);
   };
 
+  const fetchProfile = async (userId: string) => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("display_name")
+      .eq("user_id", userId)
+      .maybeSingle();
+    setDisplayName(data?.display_name || null);
+  };
+
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          setTimeout(() => checkAdmin(session.user.id), 0);
+          setTimeout(() => {
+            checkAdmin(session.user.id);
+            fetchProfile(session.user.id);
+          }, 0);
         } else {
           setIsAdmin(false);
+          setDisplayName(null);
         }
         setLoading(false);
       }
@@ -49,6 +64,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(session?.user ?? null);
       if (session?.user) {
         checkAdmin(session.user.id);
+        fetchProfile(session.user.id);
       }
       setLoading(false);
     });
@@ -61,8 +77,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return { error: error as Error | null };
   };
 
-  const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin } });
+  const signUp = async (email: string, password: string, name?: string, phone?: string) => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: window.location.origin,
+        data: { display_name: name || email, phone: phone || "" },
+      },
+    });
+    // Update profile with phone if provided
+    if (!error && data.user && phone) {
+      await supabase.from("profiles").update({ phone }).eq("user_id", data.user.id);
+    }
     return { error: error as Error | null };
   };
 
@@ -71,7 +98,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, isAdmin, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ session, user, isAdmin, loading, displayName, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );

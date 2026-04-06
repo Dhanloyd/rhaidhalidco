@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      activities: {
+        Row: {
+          active: boolean
+          created_at: string
+          description: string | null
+          display_order: number
+          event_date: string | null
+          id: string
+          image_url: string | null
+          location: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          event_date?: string | null
+          id?: string
+          image_url?: string | null
+          location?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          event_date?: string | null
+          id?: string
+          image_url?: string | null
+          location?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       addresses: {
         Row: {
           address_line: string
@@ -197,6 +236,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      founder_profiles: {
+        Row: {
+          active: boolean
+          bio: string | null
+          created_at: string
+          display_order: number
+          id: string
+          image_url: string | null
+          name: string
+          role: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          bio?: string | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          image_url?: string | null
+          name: string
+          role?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          bio?: string | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          image_url?: string | null
+          name?: string
+          role?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       highlights: {
         Row: {
@@ -490,6 +565,90 @@ export type Database = {
         }
         Relationships: []
       }
+      page_content: {
+        Row: {
+          active: boolean
+          content: string | null
+          created_at: string
+          display_order: number
+          id: string
+          image_url: string | null
+          metadata: Json | null
+          page_key: string
+          section_key: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          content?: string | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          image_url?: string | null
+          metadata?: Json | null
+          page_key: string
+          section_key: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          content?: string | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          image_url?: string | null
+          metadata?: Json | null
+          page_key?: string
+          section_key?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      player_profiles: {
+        Row: {
+          active: boolean
+          bio: string | null
+          created_at: string
+          display_order: number
+          id: string
+          image_url: string | null
+          jersey_number: number | null
+          name: string
+          position: string | null
+          stats: Json | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          bio?: string | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          image_url?: string | null
+          jersey_number?: number | null
+          name: string
+          position?: string | null
+          stats?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          bio?: string | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          image_url?: string | null
+          jersey_number?: number | null
+          name?: string
+          position?: string | null
+          stats?: Json | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pos_transactions: {
         Row: {
           cash_received: number
@@ -687,6 +846,7 @@ export type Database = {
           created_at: string
           display_name: string | null
           id: string
+          phone: string | null
           updated_at: string
           user_id: string
         }
@@ -695,6 +855,7 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
+          phone?: string | null
           updated_at?: string
           user_id: string
         }
@@ -703,6 +864,7 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
+          phone?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -758,6 +920,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      social_links: {
+        Row: {
+          active: boolean
+          created_at: string
+          display_order: number
+          icon: string | null
+          id: string
+          platform: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          display_order?: number
+          icon?: string | null
+          id?: string
+          platform: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          display_order?: number
+          icon?: string | null
+          id?: string
+          platform?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: []
       }
       suppliers: {
         Row: {

@@ -1,4 +1,4 @@
-import { LayoutDashboard, ShoppingCart, Package, CreditCard, LogOut, Home, Newspaper, Star } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, Package, CreditCard, LogOut, Home, Newspaper, Star, Users, UserCheck, Calendar, FileText, Share2, BarChart3, Tag, Zap, Truck } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -12,9 +12,22 @@ const navItems = [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
   { title: "Orders", url: "/admin/orders", icon: ShoppingCart },
   { title: "Products", url: "/admin/products", icon: Package },
+  { title: "Inventory", url: "/admin/inventory", icon: Truck },
+  { title: "POS", url: "/admin/pos", icon: CreditCard },
+  { title: "Analytics", url: "/admin/analytics", icon: BarChart3 },
+  { title: "Vouchers", url: "/admin/vouchers", icon: Tag },
+  { title: "Flash Sales", url: "/admin/flash-sales", icon: Zap },
+  { title: "Suppliers", url: "/admin/suppliers", icon: Users },
+];
+
+const cmsItems = [
   { title: "News", url: "/admin/news", icon: Newspaper },
   { title: "Highlights", url: "/admin/highlights", icon: Star },
-  { title: "POS", url: "/admin/pos", icon: CreditCard },
+  { title: "Founders", url: "/admin/founders", icon: UserCheck },
+  { title: "Players", url: "/admin/players", icon: Users },
+  { title: "Activities", url: "/admin/activities", icon: Calendar },
+  { title: "Page Content", url: "/admin/pages", icon: FileText },
+  { title: "Social Links", url: "/admin/social-links", icon: Share2 },
 ];
 
 export function AdminSidebar() {
@@ -25,6 +38,17 @@ export function AdminSidebar() {
   const { signOut, user } = useAuth();
 
   const isActive = (path: string) => location.pathname === path;
+
+  const renderItems = (items: typeof navItems) => items.map((item) => (
+    <SidebarMenuItem key={item.title}>
+      <SidebarMenuButton asChild isActive={isActive(item.url)}>
+        <NavLink to={item.url} end className="hover:bg-muted/50" activeClassName="bg-primary/10 text-primary font-medium">
+          <item.icon className="mr-2 h-4 w-4" />
+          {!collapsed && <span>{item.title}</span>}
+        </NavLink>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  ));
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border">
@@ -39,21 +63,12 @@ export function AdminSidebar() {
           )}
         </div>
         <SidebarGroup>
-          <SidebarGroupLabel>Menu</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                    <NavLink to={item.url} end className="hover:bg-muted/50" activeClassName="bg-primary/10 text-primary font-medium">
-                      <item.icon className="mr-2 h-4 w-4" />
-                      {!collapsed && <span>{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
+          <SidebarGroupLabel>Operations</SidebarGroupLabel>
+          <SidebarGroupContent><SidebarMenu>{renderItems(navItems)}</SidebarMenu></SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel>Content Management</SidebarGroupLabel>
+          <SidebarGroupContent><SidebarMenu>{renderItems(cmsItems)}</SidebarMenu></SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="bg-card border-t border-border p-3 space-y-2">

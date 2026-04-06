@@ -21,6 +21,7 @@ import MyOrdersPage from "./pages/MyOrdersPage";
 import ContactPage from "./pages/ContactPage";
 import SignInPage from "./pages/SignInPage";
 import SignUpPage from "./pages/SignUpPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import AdminLoginPage from "./pages/admin/AdminLoginPage";
 import DashboardPage from "./pages/admin/DashboardPage";
 import OrdersPage from "./pages/admin/OrdersPage";
@@ -33,6 +34,11 @@ import SuppliersPage from "./pages/admin/SuppliersPage";
 import NewsManagementPage from "./pages/admin/NewsManagementPage";
 import HighlightsPage from "./pages/admin/HighlightsPage";
 import POSPage from "./pages/admin/POSPage";
+import FoundersManagementPage from "./pages/admin/FoundersManagementPage";
+import PlayersManagementPage from "./pages/admin/PlayersManagementPage";
+import ActivitiesManagementPage from "./pages/admin/ActivitiesManagementPage";
+import PageContentPage from "./pages/admin/PageContentPage";
+import SocialLinksPage from "./pages/admin/SocialLinksPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -63,6 +69,7 @@ const App = () => (
               {/* Auth */}
               <Route path="/signin" element={<SignInPage />} />
               <Route path="/signup" element={<SignUpPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
 
               {/* Admin */}
               <Route path="/admin/login" element={<AdminLoginPage />} />
@@ -77,6 +84,11 @@ const App = () => (
               <Route path="/admin/suppliers" element={<AdminLayout><SuppliersPage /></AdminLayout>} />
               <Route path="/admin/news" element={<AdminLayout><NewsManagementPage /></AdminLayout>} />
               <Route path="/admin/highlights" element={<AdminLayout><HighlightsPage /></AdminLayout>} />
+              <Route path="/admin/founders" element={<AdminLayout><FoundersManagementPage /></AdminLayout>} />
+              <Route path="/admin/players" element={<AdminLayout><PlayersManagementPage /></AdminLayout>} />
+              <Route path="/admin/activities" element={<AdminLayout><ActivitiesManagementPage /></AdminLayout>} />
+              <Route path="/admin/pages" element={<AdminLayout><PageContentPage /></AdminLayout>} />
+              <Route path="/admin/social-links" element={<AdminLayout><SocialLinksPage /></AdminLayout>} />
 
               <Route path="*" element={<NotFound />} />
             </Routes>
