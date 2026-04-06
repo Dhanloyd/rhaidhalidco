@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Search } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Upload, Image as ImageIcon } from "lucide-react";
 import { categoryLabels } from "@/data/products";
 
 const categories = Object.entries(categoryLabels);
@@ -20,12 +20,33 @@ const ProductsPage = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { fetchProducts(); }, []);
 
   const fetchProducts = async () => {
     const { data } = await supabase.from("products").select("*").order("created_at", { ascending: false });
     setProducts(data || []); setLoading(false);
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { toast.error("Please select an image file"); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error("Image must be under 5MB"); return; }
+
+    setUploading(true);
+    const ext = file.name.split(".").pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+    const { error } = await supabase.storage.from("product-images").upload(fileName, file);
+    if (error) { toast.error("Upload failed: " + error.message); setUploading(false); return; }
+
+    const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(fileName);
+    setForm({ ...form, image_url: urlData.publicUrl });
+    setUploading(false);
+    toast.success("Image uploaded!");
   };
 
   const handleSave = async () => {
@@ -98,7 +119,29 @@ const ProductsPage = () => {
                   </Select>
                 </div>
               </div>
-              <div><label className="text-sm font-medium text-foreground block mb-1">Image URL</label><Input value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} placeholder="https://..." /></div>
+
+              {/* Image Upload */}
+              <div>
+                <label className="text-sm font-medium text-foreground block mb-1">Product Image</label>
+                <div className="border-2 border-dashed border-border rounded-lg p-4">
+                  {form.image_url ? (
+                    <div className="relative">
+                      <img src={form.image_url} alt="Preview" className="w-full h-40 object-cover rounded-lg" />
+                      <Button variant="destructive" size="sm" className="absolute top-2 right-2" onClick={() => setForm({ ...form, image_url: "" })}>Remove</Button>
+                    </div>
+                  ) : (
+                    <div className="text-center py-4">
+                      <ImageIcon className="mx-auto h-10 w-10 text-muted-foreground mb-2" />
+                      <p className="text-sm text-muted-foreground mb-2">Click to upload or drag an image</p>
+                      <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={uploading} className="gap-2">
+                        <Upload size={14} /> {uploading ? "Uploading..." : "Upload Image"}
+                      </Button>
+                    </div>
+                  )}
+                  <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                </div>
+              </div>
+
               <div className="grid sm:grid-cols-3 gap-4">
                 <div><label className="text-sm font-medium text-foreground block mb-1">Stock Qty</label><Input type="number" value={form.stock_quantity} onChange={(e) => setForm({ ...form, stock_quantity: parseInt(e.target.value) || 0 })} /></div>
                 <div><label className="text-sm font-medium text-foreground block mb-1">Low Threshold</label><Input type="number" value={form.low_stock_threshold} onChange={(e) => setForm({ ...form, low_stock_threshold: parseInt(e.target.value) || 10 })} /></div>
