@@ -19,7 +19,7 @@ const navLinks = [
 const Navbar = () => {
   const [open, setOpen] = useState(false);
   const location = useLocation();
-  const { user, signOut } = useAuth();
+  const { user, signOut, displayName } = useAuth();
   const { totalItems } = useCart();
 
   return (
@@ -50,8 +50,9 @@ const Navbar = () => {
 
           {user ? (
             <DropdownMenu>
-              <DropdownMenuTrigger className="ml-2 flex items-center gap-1 px-3 py-2 text-sm font-medium text-nav-foreground/80 hover:text-primary-foreground transition-colors rounded-md hover:bg-primary/10">
+              <DropdownMenuTrigger className="ml-2 flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-nav-foreground/80 hover:text-primary-foreground transition-colors rounded-md hover:bg-primary/10">
                 <User size={18} />
+                {displayName && <span className="hidden sm:inline max-w-[100px] truncate">{displayName}</span>}
                 <ChevronDown size={14} />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
