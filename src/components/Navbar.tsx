@@ -57,6 +57,9 @@ const Navbar = () => {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem asChild>
+                  <Link to="/profile" className="gap-2"><User size={14} /> My Profile</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
                   <Link to="/my-orders" className="gap-2"><Package size={14} /> My Orders</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
