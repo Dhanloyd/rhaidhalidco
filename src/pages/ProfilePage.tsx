@@ -21,7 +21,7 @@ const ProfilePage = () => {
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [loading, setLoading] = useState(true);
-
+  const [activeTab, setActiveTab] = useState(0);
   useEffect(() => {
     if (!user) return;
     Promise.all([
