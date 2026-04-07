@@ -101,6 +101,7 @@ const Navbar = () => {
             </Link>
             {user ? (
               <>
+                <Link to="/profile" onClick={() => setOpen(false)} className="px-4 py-3 text-sm font-medium tracking-wide uppercase text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10 rounded-md flex items-center gap-2"><User size={16} /> My Profile</Link>
                 <Link to="/my-orders" onClick={() => setOpen(false)} className="px-4 py-3 text-sm font-medium tracking-wide uppercase text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10 rounded-md flex items-center gap-2"><Package size={16} /> My Orders</Link>
                 <Link to="/addresses" onClick={() => setOpen(false)} className="px-4 py-3 text-sm font-medium tracking-wide uppercase text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10 rounded-md flex items-center gap-2"><MapPin size={16} /> Addresses</Link>
                 <button onClick={() => { signOut(); setOpen(false); }} className="px-4 py-3 text-sm font-medium tracking-wide uppercase text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10 rounded-md text-left flex items-center gap-2"><LogOut size={16} /> Sign Out</button>
