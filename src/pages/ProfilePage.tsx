@@ -52,7 +52,7 @@ const ProfilePage = () => {
     );
   }
 
-  const [activeTab, setActiveTab] = useState(0);
+  // activeTab moved to top
 
   const pendingOrders = orders.filter(o => o.status === "pending");
   const processingOrders = orders.filter(o => o.status === "processing");
@@ -76,7 +76,7 @@ const ProfilePage = () => {
     { label: "Cancelled", icon: XCircle, count: cancelledOrders.length, color: "text-red-600 bg-red-50", orders: cancelledOrders },
   ];
 
-  const [activeTab, setActiveTab] = useState(0);
+  // activeTab already declared
 
   return (
     <div className="pt-20 pb-16 px-4 bg-muted min-h-screen">
