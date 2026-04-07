@@ -52,6 +52,8 @@ const ProfilePage = () => {
     );
   }
 
+  const [activeTab, setActiveTab] = useState(0);
+
   const pendingOrders = orders.filter(o => o.status === "pending");
   const processingOrders = orders.filter(o => o.status === "processing");
   const shippedOrders = orders.filter(o => o.status === "shipped");
