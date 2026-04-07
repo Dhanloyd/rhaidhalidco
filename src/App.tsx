@@ -18,6 +18,7 @@ import CheckoutPage from "./pages/CheckoutPage";
 import WishlistPage from "./pages/WishlistPage";
 import AddressesPage from "./pages/AddressesPage";
 import MyOrdersPage from "./pages/MyOrdersPage";
+import ProfilePage from "./pages/ProfilePage";
 import ContactPage from "./pages/ContactPage";
 import SignInPage from "./pages/SignInPage";
 import SignUpPage from "./pages/SignUpPage";
@@ -64,6 +65,7 @@ const App = () => (
               <Route path="/wishlist" element={<Layout><WishlistPage /></Layout>} />
               <Route path="/addresses" element={<Layout><AddressesPage /></Layout>} />
               <Route path="/my-orders" element={<Layout><MyOrdersPage /></Layout>} />
+              <Route path="/profile" element={<Layout><ProfilePage /></Layout>} />
               <Route path="/contact" element={<Layout><ContactPage /></Layout>} />
 
               {/* Auth */}
