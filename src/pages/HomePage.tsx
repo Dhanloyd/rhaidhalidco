@@ -111,7 +111,7 @@ const HomePage = () => {
         </section>
       )}
 
-      {/* Top Players */}
+      {/* Featured Players */}
       {players.length > 0 && (
         <section className="section-padding bg-muted">
           <div className="container mx-auto">
@@ -119,17 +119,28 @@ const HomePage = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
               {players.map((player: any) => (
                 <Link key={player.id} to="/players" className="group">
-                  <div className="relative rounded-xl overflow-hidden hover-lift">
+                  <div className="relative rounded-xl overflow-hidden hover-lift bg-card border border-border/50">
+                    {/* Player image or fallback */}
                     {player.image_url ? (
-                      <img src={player.image_url} alt={player.name} className="w-full h-64 sm:h-80 object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+                      <img
+                        src={player.image_url}
+                        alt={player.name}
+                        className="w-full h-64 sm:h-80 object-cover group-hover:scale-105 transition-transform duration-500"
+                        loading="lazy"
+                      />
                     ) : (
-                      <div className="w-full h-64 sm:h-80 bg-primary/20 flex items-center justify-center">
-                        <span className="font-heading text-6xl text-primary/40">#{player.jersey_number}</span>
+                      <div className="w-full h-64 sm:h-80 bg-primary/10 flex flex-col items-center justify-center gap-2">
+                        <span className="font-heading text-6xl text-primary/30">#{player.jersey_number}</span>
+                        <span className="font-heading text-sm uppercase text-primary/40 tracking-widest">{player.position}</span>
                       </div>
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-[hsl(218_65%_10%/0.9)] via-transparent to-transparent" />
                     <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6">
-                      <p className="text-primary-light text-xs sm:text-sm font-medium">#{player.jersey_number} · {player.position}</p>
+                      <p className="text-primary-light text-xs sm:text-sm font-medium">
+                        {player.jersey_number && `#${player.jersey_number}`}
+                        {player.jersey_number && player.position && " · "}
+                        {player.position}
+                      </p>
                       <h3 className="font-heading text-xl sm:text-2xl uppercase text-white">{player.name}</h3>
                       {player.stats && (
                         <p className="text-white/70 text-xs sm:text-sm mt-1">
@@ -144,7 +155,11 @@ const HomePage = () => {
               ))}
             </div>
             <div className="text-center mt-6 md:mt-8">
-              <Link to="/players"><Button variant="outline" className="font-heading uppercase tracking-wider">View All Players <ChevronRight size={16} /></Button></Link>
+              <Link to="/players">
+                <Button variant="outline" className="font-heading uppercase tracking-wider">
+                  View All Players <ChevronRight size={16} />
+                </Button>
+              </Link>
             </div>
           </div>
         </section>
@@ -265,7 +280,7 @@ const HomePage = () => {
         </section>
       )}
 
-      {/* Empty state */}
+      {/* Loading state */}
       {loading && (
         <section className="py-20 flex justify-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
