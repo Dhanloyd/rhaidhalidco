@@ -2,7 +2,29 @@ import { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
-const StatBox = ({ label, value, pct = false }: { label: string; value: any; pct?: boolean }) => (
+interface Player {
+  id: string;
+  name: string;
+  jersey_number?: number;
+  position?: string;
+  image_url?: string;
+  stats?: {
+    ppg?: number;
+    rpg?: number;
+    apg?: number;
+    spg?: number;
+    bpg?: number;
+    fgp?: number;
+    tpp?: number;
+    ftp?: number;
+  };
+  bio?: string;
+  achievements?: string[];
+  active: boolean;
+  display_order?: number;
+}
+
+const StatBox = ({ label, value, pct = false }: { label: string; value: string | number | null | undefined; pct?: boolean }) => (
   <div className="text-center">
     <p className="font-heading text-xl text-foreground">
       {value != null && value !== "" ? `${value}${pct ? "%" : ""}` : "—"}
@@ -12,8 +34,8 @@ const StatBox = ({ label, value, pct = false }: { label: string; value: any; pct
 );
 
 const PlayersPage = () => {
-  const [players, setPlayers] = useState<any[]>([]);
-  const [selected, setSelected] = useState<any | null>(null);
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [selected, setSelected] = useState<Player | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,7 +45,7 @@ const PlayersPage = () => {
       .eq("active", true)
       .order("display_order")
       .then(({ data }) => {
-        setPlayers(data || []);
+        setPlayers((data as unknown as Player[]) || []);
         setLoading(false);
       });
   }, []);
