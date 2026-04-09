@@ -25,8 +25,7 @@ const ActivitiesPage = () => {
       .eq("active", true)
       .order("display_order", { ascending: true })
       .then(({ data, error }) => {
-        console.log("DATA:", data);
-        console.log("ERROR:", error);
+        if (error) console.error("Fetch error:", error);
         setActivities(data || []);
         setLoading(false);
       });
@@ -44,12 +43,22 @@ const ActivitiesPage = () => {
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {activities.map((act) => (
                 <div key={act.id} className="bg-card rounded-xl border overflow-hidden">
-                  {act.image_url && (
+
+                  {/* Image */}
+                  {act.image_url ? (
                     <img
                       src={act.image_url}
                       alt={act.title}
-                      className="w-full h-48 object-contain bg-gray-100"
+                      className="w-full h-48 object-cover"
+                      onError={(e) => {
+                        console.error("Failed to load image:", act.image_url);
+                        (e.target as HTMLImageElement).style.display = "none";
+                      }}
                     />
+                  ) : (
+                    <div className="w-full h-48 bg-gray-100 flex items-center justify-center text-sm text-muted-foreground">
+                      No image
+                    </div>
                   )}
 
                   <div className="p-5">
@@ -60,14 +69,18 @@ const ActivitiesPage = () => {
                     </p>
 
                     <div className="text-sm text-muted-foreground space-y-1">
-                      <div className="flex items-center gap-2">
-                        <Calendar size={14} />
-                        {act.event_date}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <MapPin size={14} />
-                        {act.location}
-                      </div>
+                      {act.event_date && (
+                        <div className="flex items-center gap-2">
+                          <Calendar size={14} />
+                          {new Date(act.event_date).toLocaleDateString()}
+                        </div>
+                      )}
+                      {act.location && (
+                        <div className="flex items-center gap-2">
+                          <MapPin size={14} />
+                          {act.location}
+                        </div>
+                      )}
                     </div>
 
                     <Button
@@ -95,12 +108,19 @@ const ActivitiesPage = () => {
             className="bg-card rounded-xl border w-full max-w-lg overflow-hidden shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
-            {selected.image_url && (
+            {selected.image_url ? (
               <img
                 src={selected.image_url}
                 alt={selected.title}
-                className="w-full h-56 object-contain bg-gray-100"
+                className="w-full h-56 object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
+                }}
               />
+            ) : (
+              <div className="w-full h-56 bg-gray-100 flex items-center justify-center text-sm text-muted-foreground">
+                No image
+              </div>
             )}
 
             <div className="p-6">
@@ -119,14 +139,18 @@ const ActivitiesPage = () => {
               </p>
 
               <div className="text-sm text-muted-foreground space-y-2">
-                <div className="flex items-center gap-2">
-                  <Calendar size={14} />
-                  {selected.event_date}
-                </div>
-                <div className="flex items-center gap-2">
-                  <MapPin size={14} />
-                  {selected.location}
-                </div>
+                {selected.event_date && (
+                  <div className="flex items-center gap-2">
+                    <Calendar size={14} />
+                    {new Date(selected.event_date).toLocaleDateString()}
+                  </div>
+                )}
+                {selected.location && (
+                  <div className="flex items-center gap-2">
+                    <MapPin size={14} />
+                    {selected.location}
+                  </div>
+                )}
               </div>
 
               <Button className="mt-6 w-full" onClick={() => setSelected(null)}>
