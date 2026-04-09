@@ -203,7 +203,7 @@ const HomePage = () => {
             <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
               {activities.map((act: any) => (
                 <div key={act.id} className="bg-card rounded-xl overflow-hidden hover-lift border border-border/50">
-                  {act.image_url && <img src={act.image_url} alt={act.title} className="w-full h-36 sm:h-40 object-cover" loading="lazy" />}
+                  {act.image_url && <img src={act.image_url} alt={act.title} className="w-full h-36 sm:h-40 object-contain bg-gray-100" loading="lazy" />}
                   <div className="p-4 sm:p-5">
                     <h3 className="font-heading text-base sm:text-lg uppercase text-foreground mb-2">{act.title}</h3>
                     {act.event_date && (
