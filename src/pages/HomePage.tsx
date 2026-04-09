@@ -125,7 +125,7 @@ const HomePage = () => {
                       <img
                         src={player.image_url}
                         alt={player.name}
-                        className="w-full h-64 sm:h-80 object-cover group-hover:scale-105 transition-transform duration-500"
+                        className="w-full h-64 sm:h-80 object-contain group-hover:scale-105 transition-transform duration-500"
                         loading="lazy"
                       />
                     ) : (

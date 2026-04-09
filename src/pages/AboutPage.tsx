@@ -25,7 +25,7 @@ const AboutPage = () => (
         <h2 className="font-heading text-3xl uppercase tracking-wider text-foreground mb-6 text-center">Our Story</h2>
         <div className="prose prose-lg max-w-none text-muted-foreground leading-relaxed space-y-4">
           <p>
-            Founded in 2020, RaidKhalid & Co. began as a dream shared by a group of basketball enthusiasts who wanted to create more than just a team — they wanted to build a movement. What started as pickup games in local courts quickly grew into an organized franchise with a dedicated fanbase.
+            Founded in 2018, RaidKhalid & Co. began as a dream shared by a group of basketball enthusiasts who wanted to create more than just a team — they wanted to build a movement. What started as pickup games in local courts quickly grew into an organized franchise with a dedicated fanbase.
           </p>
           <p>
             Today, RaidKhalid & Co. stands as a symbol of perseverance, teamwork, and community. With a roster of elite players, a thriving merchandise line, and community programs reaching hundreds of young athletes, we continue to push boundaries and redefine what a basketball organization can be.
