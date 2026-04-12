@@ -39,6 +39,8 @@ import FoundersManagementPage from "./pages/admin/FoundersManagementPage";
 import PlayersManagementPage from "./pages/admin/PlayersManagementPage";
 import ActivitiesManagementPage from "./pages/admin/ActivitiesManagementPage";
 import PageContentPage from "./pages/admin/PageContentPage";
+import AdminAboutPage from "./pages/admin/AdminAboutPage";
+import AdminContactPage from "./pages/admin/AdminContactPage";
 import SocialLinksPage from "./pages/admin/SocialLinksPage";
 import NotFound from "./pages/NotFound";
 
@@ -90,6 +92,8 @@ const App = () => (
               <Route path="/admin/players" element={<AdminLayout><PlayersManagementPage /></AdminLayout>} />
               <Route path="/admin/activities" element={<AdminLayout><ActivitiesManagementPage /></AdminLayout>} />
               <Route path="/admin/pages" element={<AdminLayout><PageContentPage /></AdminLayout>} />
+              <Route path="/admin/pages/about" element={<AdminLayout><AdminAboutPage /></AdminLayout>} />
+              <Route path="/admin/pages/contact" element={<AdminLayout><AdminContactPage /></AdminLayout>} />
               <Route path="/admin/social-links" element={<AdminLayout><SocialLinksPage /></AdminLayout>} />
 
               <Route path="*" element={<NotFound />} />

@@ -1,4 +1,4 @@
-import { LayoutDashboard, ShoppingCart, Package, CreditCard, LogOut, Home, Newspaper, Star, Users, UserCheck, Calendar, FileText, Share2, BarChart3, Tag, Zap, Truck } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, Package, CreditCard, LogOut, Home, Newspaper, Star, Users, UserCheck, Calendar, FileText, Share2, BarChart3, Tag, Zap, Truck, Phone, Info } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -27,6 +27,8 @@ const cmsItems = [
   { title: "Players", url: "/admin/players", icon: Users },
   { title: "Activities", url: "/admin/activities", icon: Calendar },
   { title: "Page Content", url: "/admin/pages", icon: FileText },
+  { title: "About Page", url: "/admin/pages/about", icon: Info },
+  { title: "Contact Page", url: "/admin/pages/contact", icon: Phone },
   { title: "Social Links", url: "/admin/social-links", icon: Share2 },
 ];
 
