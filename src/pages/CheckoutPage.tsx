@@ -168,7 +168,7 @@ const CheckoutPage = () => {
     setOrderId(newOrderId);
 
     // Use PayMongo's client-side checkout via payment link
-    const PUBLIC_KEY = "pk_live_Lo3hwj4HVj74HEcbq7hqJoqM";
+    const PUBLIC_KEY = "pk_live_c2AxV1hjwM3A56V7HgczfQXn";
     const BASE64_KEY = btoa(`${PUBLIC_KEY}:`);
 
     const response = await fetch("https://api.paymongo.com/v1/checkout_sessions", {
