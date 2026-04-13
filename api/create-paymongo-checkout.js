@@ -31,7 +31,7 @@ export default async function handler(req, res) {
               name: item.name,
               quantity: item.quantity,
             })),
-            payment_method_types: ["gcash", "card", "maya", "grab_pay"],
+            payment_method_types: ["gcash", "card", "grab_pay"],
             description: `Order #${orderId?.slice(0, 8).toUpperCase()}`,
             success_url: `${process.env.SITE_URL}/checkout/success?order_id=${orderId}`,
             cancel_url: `${process.env.SITE_URL}/checkout/cancel?order_id=${orderId}`,
