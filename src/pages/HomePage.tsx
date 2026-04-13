@@ -1,4 +1,4 @@
-import { Link, useSearchParams, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { ShoppingCart, Ticket, ChevronRight, Play, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import heroBanner from "@/assets/hero-banner.jpg";
@@ -14,20 +14,6 @@ const HomePage = () => {
   const [activities, setActivities] = useState<any[]>([]);
   const [socialLinks, setSocialLinks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-
-  // ── Detect PayMongo redirect back to home ──
-  useEffect(() => {
-    const checkout = searchParams.get("checkout");
-    const orderId = searchParams.get("order_id");
-    if (checkout === "success" && orderId) {
-      navigate(`/checkout/success?order_id=${orderId}`, { replace: true });
-    } else if (checkout === "cancel" && orderId) {
-      navigate(`/checkout/cancel?order_id=${orderId}`, { replace: true });
-    }
-  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -134,8 +120,14 @@ const HomePage = () => {
               {players.map((player: any) => (
                 <Link key={player.id} to="/players" className="group">
                   <div className="relative rounded-xl overflow-hidden hover-lift bg-card border border-border/50">
+                    {/* Player image or fallback */}
                     {player.image_url ? (
-                      <img src={player.image_url} alt={player.name} className="w-full h-64 sm:h-80 object-contain group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+                      <img
+                        src={player.image_url}
+                        alt={player.name}
+                        className="w-full h-64 sm:h-80 object-contain group-hover:scale-105 transition-transform duration-500"
+                        loading="lazy"
+                      />
                     ) : (
                       <div className="w-full h-64 sm:h-80 bg-primary/10 flex flex-col items-center justify-center gap-2">
                         <span className="font-heading text-6xl text-primary/30">#{player.jersey_number}</span>
