@@ -14,6 +14,8 @@ import {
 
 const steps = ["Shipping", "Review", "Payment", "Confirmation"];
 
+const VERCEL_API = "https://rhaidhalidco-buy3.vercel.app/api/create-paymongo-checkout";
+
 const CheckoutPage = () => {
   const { items, totalPrice, clearCart } = useCart();
   const { user } = useAuth();
@@ -137,7 +139,6 @@ const CheckoutPage = () => {
 
     if (error) throw error;
 
-    // Insert order items
     const orderItems = items.map((i) => ({
       order_id: data.id,
       product_id: i.product_id,
@@ -148,7 +149,6 @@ const CheckoutPage = () => {
     }));
     await supabase.from("order_items").insert(orderItems);
 
-    // Update voucher usage
     if (appliedVoucher) {
       await supabase.from("vouchers")
         .update({ used_count: appliedVoucher.used_count + 1 })
@@ -159,70 +159,65 @@ const CheckoutPage = () => {
   };
 
   // ──────────────────────────────────────────
-  // 💳 PAYMONGO — Direct API call (no edge function)
+  // 💳 PAYMONGO — via Vercel serverless function
   // ──────────────────────────────────────────
- const handlePayMongoCheckout = async () => {
-  setProcessing(true);
-  try {
-    const newOrderId = await createOrder();
-    setOrderId(newOrderId);
+  const handlePayMongoCheckout = async () => {
+    setProcessing(true);
+    try {
+      const newOrderId = await createOrder();
+      setOrderId(newOrderId);
 
-    // Use PayMongo's client-side checkout via payment link
-    const PUBLIC_KEY = "pk_live_c2AxV1hjwM3A56V7HgczfQXn";
-    const BASE64_KEY = btoa(`${PUBLIC_KEY}:`);
+      const response = await fetch(VERCEL_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: grandTotal,
+          orderId: newOrderId,
+          customerName: shipping.full_name,
+          customerEmail: user.email,
+          items: items.map((i) => ({
+            name: i.product?.name || "Item",
+            price: i.product?.price || 0,
+            quantity: i.quantity,
+          })),
+        }),
+      });
 
-    const response = await fetch("https://api.paymongo.com/v1/checkout_sessions", {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${BASE64_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        data: {
-          attributes: {
-            billing: {
-              name: shipping.full_name,
-              email: user.email,
-            },
-            send_email_receipt: true,
-            show_description: true,
-            show_line_items: true,
-            line_items: items.map((i) => ({
-              currency: "PHP",
-              amount: Math.round((i.product?.price || 0) * 100),
-              name: i.product?.name || "Item",
-              quantity: i.quantity,
-            })),
-            payment_method_types: ["gcash", "card", "maya", "grab_pay"],
-            description: `Order #${newOrderId?.slice(0, 8).toUpperCase()}`,
-            success_url: `${window.location.origin}/checkout/success?order_id=${newOrderId}`,
-            cancel_url: `${window.location.origin}/checkout/cancel?order_id=${newOrderId}`,
-          },
-        },
-      }),
-    });
+      const data = await response.json();
 
-    const data = await response.json();
+      if (!response.ok || !data.checkoutUrl) {
+        throw new Error(data.error || "Failed to create payment session");
+      }
 
-    if (!response.ok) {
-      throw new Error(data.errors?.[0]?.detail || "PayMongo error");
+      await supabase.from("orders")
+        .update({ paymongo_session_id: data.sessionId })
+        .eq("id", newOrderId);
+
+      await clearCart();
+      window.location.href = data.checkoutUrl;
+
+    } catch (err: any) {
+      toast.error(err.message || "Payment failed. Please try again.");
+      setProcessing(false);
     }
+  };
 
-    const checkoutUrl = data.data.attributes.checkout_url;
-    const sessionId = data.data.id;
-
-    await supabase.from("orders")
-      .update({ paymongo_session_id: sessionId })
-      .eq("id", newOrderId);
-
-    await clearCart();
-    window.location.href = checkoutUrl;
-
-  } catch (err: any) {
-    toast.error(err.message || "Payment failed. Please try again.");
-    setProcessing(false);
-  }
-};
+  // ──────────────────────────────────────────
+  // 💵 COD — Place order directly
+  // ──────────────────────────────────────────
+  const handleCOD = async () => {
+    setProcessing(true);
+    try {
+      const newOrderId = await createOrder();
+      await clearCart();
+      setOrderId(newOrderId);
+      setStep(3);
+    } catch {
+      toast.error("Checkout failed. Please try again.");
+    } finally {
+      setProcessing(false);
+    }
+  };
 
   const handlePlaceOrder = () => {
     if (paymentMethod === "cod") {
@@ -428,7 +423,7 @@ const CheckoutPage = () => {
                       <div className="flex items-center gap-2 pt-1 border-t border-primary/10">
                         <span className="text-xs text-muted-foreground">Accepted:</span>
                         {paymentMethod === "gcash"
-                          ? <span className="text-xs font-medium text-[#0070FF]">📱 GCash · Maya · GrabPay</span>
+                          ? <span className="text-xs font-medium text-[#0070FF]">📱 GCash · GrabPay</span>
                           : <span className="text-xs font-medium text-foreground">💳 Visa · Mastercard</span>
                         }
                       </div>
