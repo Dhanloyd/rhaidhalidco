@@ -44,7 +44,8 @@ import AdminContactPage from "./pages/admin/AdminContactPage";
 import SocialLinksPage from "./pages/admin/SocialLinksPage";
 import AdminReportsPage from "./pages/admin/AdminReportsPage";
 import NotFound from "./pages/NotFound";
-
+import CheckoutSuccess from "./pages/CheckoutSuccess";   
+import CheckoutCancel from "./pages/CheckoutCancel";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -70,8 +71,8 @@ const App = () => (
               <Route path="/my-orders" element={<Layout><MyOrdersPage /></Layout>} />
               <Route path="/profile" element={<Layout><ProfilePage /></Layout>} />
               <Route path="/contact" element={<Layout><ContactPage /></Layout>} />
-
-              {/* Auth */}
+              <Route path="/checkout/success" element={<Layout><CheckoutSuccess /></Layout>} />
+              <Route path="/checkout/cancel" element={<Layout><CheckoutCancel /></Layout>} />
               <Route path="/signin" element={<SignInPage />} />
               <Route path="/signup" element={<SignUpPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
