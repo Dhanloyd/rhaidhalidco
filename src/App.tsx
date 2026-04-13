@@ -43,7 +43,8 @@ import AdminAboutPage from "./pages/admin/AdminAboutPage";
 import AdminContactPage from "./pages/admin/AdminContactPage";
 import SocialLinksPage from "./pages/admin/SocialLinksPage";
 import NotFound from "./pages/NotFound";
-
+import CheckoutSuccess from "./pages/CheckoutSuccess";   
+import CheckoutCancel from "./pages/CheckoutCancel";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -69,7 +70,8 @@ const App = () => (
               <Route path="/my-orders" element={<Layout><MyOrdersPage /></Layout>} />
               <Route path="/profile" element={<Layout><ProfilePage /></Layout>} />
               <Route path="/contact" element={<Layout><ContactPage /></Layout>} />
-
+              <Route path="/checkout/success" element={<Layout><CheckoutSuccess /></Layout>} />  {/* ← add */}
+<Route path="/checkout/cancel" element={<Layout><CheckoutCancel /></Layout>} />    {/* ← add */}
               {/* Auth */}
               <Route path="/signin" element={<SignInPage />} />
               <Route path="/signup" element={<SignUpPage />} />
