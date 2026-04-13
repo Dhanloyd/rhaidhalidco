@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
@@ -131,7 +130,7 @@ const CheckoutPage = () => {
       shipping_address: `${shipping.address_line}, ${shipping.city}${shipping.province ? ", " + shipping.province : ""}${shipping.zip_code ? " " + shipping.zip_code : ""}`,
       status: "pending",
       payment_method: paymentMethod,
-      payment_status: "pending",  // ← new field to track payment
+      payment_status: "pending",
       order_type: "online",
       voucher_id: appliedVoucher?.id || null,
     }).select("id").single();
@@ -160,7 +159,7 @@ const CheckoutPage = () => {
   };
 
   // ──────────────────────────────────────────
-  // 💳 PAYMONGO — GCash + Card (real payment)
+  // 💳 PAYMONGO — Direct API call (no edge function)
   // ──────────────────────────────────────────
   const handlePayMongoCheckout = async () => {
     setProcessing(true);
@@ -169,34 +168,61 @@ const CheckoutPage = () => {
       const newOrderId = await createOrder();
       setOrderId(newOrderId);
 
-      // 2. Call Supabase Edge Function to create PayMongo session
-      const { data, error } = await supabase.functions.invoke("create-paymongo-checkout", {
-        body: {
-          amount: grandTotal,
-          orderId: newOrderId,
-          customerName: shipping.full_name,
-          customerEmail: user.email,
-          items: items.map((i) => ({
-            name: i.product?.name || "Item",
-            price: i.product?.price || 0,
-            quantity: i.quantity,
-          })),
+      // 2. Call PayMongo directly from frontend
+      const SECRET_KEY = "sk_live_Lo3hwj4HVj74HEcbq7hqJoqM";
+      const BASE64_KEY = btoa(`${SECRET_KEY}:`);
+
+      const lineItems = items.map((i) => ({
+        currency: "PHP",
+        amount: Math.round((i.product?.price || 0) * 100),
+        name: i.product?.name || "Item",
+        quantity: i.quantity,
+      }));
+
+      const response = await fetch("https://api.paymongo.com/v1/checkout_sessions", {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${BASE64_KEY}`,
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          data: {
+            attributes: {
+              billing: {
+                name: shipping.full_name,
+                email: user.email,
+              },
+              send_email_receipt: true,
+              show_description: true,
+              show_line_items: true,
+              line_items: lineItems,
+              payment_method_types: ["gcash", "card", "maya", "grab_pay"],
+              description: `Order #${newOrderId?.slice(0, 8).toUpperCase()}`,
+              success_url: `${window.location.origin}/checkout/success?order_id=${newOrderId}`,
+              cancel_url: `${window.location.origin}/checkout/cancel?order_id=${newOrderId}`,
+            },
+          },
+        }),
       });
 
-      if (error || !data?.checkoutUrl) {
-        throw new Error(error?.message || "Failed to create payment session");
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.errors?.[0]?.detail || "PayMongo error");
       }
 
-      // 3. Save PayMongo session ID to order for webhook matching later
+      const checkoutUrl = data.data.attributes.checkout_url;
+      const sessionId = data.data.id;
+
+      // 3. Save PayMongo session ID to order
       await supabase.from("orders")
-        .update({ paymongo_session_id: data.sessionId })
+        .update({ paymongo_session_id: sessionId })
         .eq("id", newOrderId);
 
       await clearCart();
 
-      // 4. Redirect to PayMongo's hosted checkout (like Shopee's payment page)
-      window.location.href = data.checkoutUrl;
+      // 4. Redirect to PayMongo hosted checkout
+      window.location.href = checkoutUrl;
 
     } catch (err: any) {
       toast.error(err.message || "Payment failed. Please try again.");
@@ -225,7 +251,6 @@ const CheckoutPage = () => {
     if (paymentMethod === "cod") {
       handleCOD();
     } else {
-      // gcash or card → PayMongo
       handlePayMongoCheckout();
     }
   };
@@ -391,7 +416,6 @@ const CheckoutPage = () => {
                     </button>
                   ))}
 
-                  {/* PayMongo info banner for GCash / Card */}
                   {(paymentMethod === "gcash" || paymentMethod === "card") && (
                     <div className="mt-2 rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
                       <div className="flex items-start gap-3">
@@ -408,7 +432,6 @@ const CheckoutPage = () => {
                         </div>
                       </div>
 
-                      {/* What to expect */}
                       <div className="space-y-1.5">
                         {[
                           "Click \"Place Order\" below",
@@ -425,7 +448,6 @@ const CheckoutPage = () => {
                         ))}
                       </div>
 
-                      {/* Accepted logos */}
                       <div className="flex items-center gap-2 pt-1 border-t border-primary/10">
                         <span className="text-xs text-muted-foreground">Accepted:</span>
                         {paymentMethod === "gcash"
@@ -446,7 +468,7 @@ const CheckoutPage = () => {
           </div>
         )}
 
-        {/* ── Step 3: Confirmation (COD only — PayMongo redirects to /checkout/success) ── */}
+        {/* ── Step 3: Confirmation ── */}
         {step === 3 && (
           <div className="text-center py-16">
             <div className="w-20 h-20 mx-auto bg-green-100 rounded-full flex items-center justify-center mb-6">
