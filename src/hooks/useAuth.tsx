@@ -22,14 +22,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [displayName, setDisplayName] = useState<string | null>(null);
 
-  const checkAdmin = async (userId: string) => {
+  const checkAdmin = async (userId: string): Promise<boolean> => {
     const { data } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", userId)
       .eq("role", "admin")
       .maybeSingle();
-    setIsAdmin(!!data);
+    const admin = !!data;
+    setIsAdmin(admin);
+    return admin;
   };
 
   const fetchProfile = async (userId: string) => {
@@ -42,31 +44,48 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
+    // Track whether the initial getSession call already set loading=false
+    // so the onAuthStateChange listener doesn't double-fire on mount.
+    let initialised = false;
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
+
         if (session?.user) {
-          setTimeout(() => {
-            checkAdmin(session.user.id);
-            fetchProfile(session.user.id);
-          }, 0);
+          // Wait for BOTH async calls before clearing the loading flag
+          await Promise.all([
+            checkAdmin(session.user.id),
+            fetchProfile(session.user.id),
+          ]);
         } else {
           setIsAdmin(false);
           setDisplayName(null);
         }
-        setLoading(false);
+
+        // Only set loading=false from the listener after initialisation
+        if (initialised) {
+          setLoading(false);
+        }
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Initial session check — this is the source of truth on first load
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
+
       if (session?.user) {
-        checkAdmin(session.user.id);
-        fetchProfile(session.user.id);
+        // Await both so loading stays true until we know isAdmin
+        await Promise.all([
+          checkAdmin(session.user.id),
+          fetchProfile(session.user.id),
+        ]);
       }
+
       setLoading(false);
+      initialised = true;
     });
 
     return () => subscription.unsubscribe();
@@ -77,7 +96,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return { error: error as Error | null };
   };
 
-  const signUp = async (email: string, password: string, name?: string, phone?: string) => {
+  const signUp = async (
+    email: string,
+    password: string,
+    name?: string,
+    phone?: string,
+  ) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -94,12 +118,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signOut = async () => {
     await supabase.auth.signOut();
-    // Clear state immediately
     setSession(null);
     setUser(null);
     setIsAdmin(false);
     setDisplayName(null);
-    // Hard redirect so all state is fully cleared
     window.location.href = "/";
   };
 
