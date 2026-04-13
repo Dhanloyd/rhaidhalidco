@@ -167,57 +167,62 @@ const CheckoutPage = () => {
     const newOrderId = await createOrder();
     setOrderId(newOrderId);
 
-    const response = await fetch("https://rhaidhalidco-buy3.vercel.app/api/create-paymongo-checkout", {
+    // Use PayMongo's client-side checkout via payment link
+    const PUBLIC_KEY = "pk_live_Lo3hwj4HVj74HEcbq7hqJoqM";
+    const BASE64_KEY = btoa(`${PUBLIC_KEY}:`);
+
+    const response = await fetch("https://api.paymongo.com/v1/checkout_sessions", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        Authorization: `Basic ${BASE64_KEY}`,
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
-        amount: grandTotal,
-        orderId: newOrderId,
-        customerName: shipping.full_name,
-        customerEmail: user.email,
-        items: items.map((i) => ({
-          name: i.product?.name || "Item",
-          price: i.product?.price || 0,
-          quantity: i.quantity,
-        })),
+        data: {
+          attributes: {
+            billing: {
+              name: shipping.full_name,
+              email: user.email,
+            },
+            send_email_receipt: true,
+            show_description: true,
+            show_line_items: true,
+            line_items: items.map((i) => ({
+              currency: "PHP",
+              amount: Math.round((i.product?.price || 0) * 100),
+              name: i.product?.name || "Item",
+              quantity: i.quantity,
+            })),
+            payment_method_types: ["gcash", "card", "maya", "grab_pay"],
+            description: `Order #${newOrderId?.slice(0, 8).toUpperCase()}`,
+            success_url: `${window.location.origin}/checkout/success?order_id=${newOrderId}`,
+            cancel_url: `${window.location.origin}/checkout/cancel?order_id=${newOrderId}`,
+          },
+        },
       }),
     });
 
     const data = await response.json();
 
-    if (!response.ok || !data.checkoutUrl) {
-      throw new Error(data.error || "Failed to create payment session");
+    if (!response.ok) {
+      throw new Error(data.errors?.[0]?.detail || "PayMongo error");
     }
 
+    const checkoutUrl = data.data.attributes.checkout_url;
+    const sessionId = data.data.id;
+
     await supabase.from("orders")
-      .update({ paymongo_session_id: data.sessionId })
+      .update({ paymongo_session_id: sessionId })
       .eq("id", newOrderId);
 
     await clearCart();
-    window.location.href = data.checkoutUrl;
+    window.location.href = checkoutUrl;
 
   } catch (err: any) {
     toast.error(err.message || "Payment failed. Please try again.");
     setProcessing(false);
   }
 };
-
-  // ──────────────────────────────────────────
-  // 💵 COD — Place order directly
-  // ──────────────────────────────────────────
-  const handleCOD = async () => {
-    setProcessing(true);
-    try {
-      const newOrderId = await createOrder();
-      await clearCart();
-      setOrderId(newOrderId);
-      setStep(3);
-    } catch {
-      toast.error("Checkout failed. Please try again.");
-    } finally {
-      setProcessing(false);
-    }
-  };
 
   const handlePlaceOrder = () => {
     if (paymentMethod === "cod") {

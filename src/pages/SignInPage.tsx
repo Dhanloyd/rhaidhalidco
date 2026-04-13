@@ -18,14 +18,19 @@ const SignInPage = () => {
   const [forgotLoading, setForgotLoading] = useState(false);
   const { signIn, user } = useAuth();
   const navigate = useNavigate();
-  const [displayName, setDisplayName] = useState<string | null>(null);
 
+  // If already logged in, redirect based on role
   useEffect(() => {
-    if (user) {
-      supabase.from("profiles").select("display_name").eq("user_id", user.id).maybeSingle().then(({ data }) => {
-        if (data?.display_name) setDisplayName(data.display_name);
+    if (!user) return;
+    supabase
+      .from("profiles")
+      .select("role")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.role === "admin") navigate("/admin", { replace: true });
+        else navigate("/", { replace: true });
       });
-    }
   }, [user]);
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -33,9 +38,13 @@ const SignInPage = () => {
     if (!email || !password) { toast.error("Please fill in all fields."); return; }
     setIsLoading(true);
     const { error } = await signIn(email, password);
-    setIsLoading(false);
-    if (error) toast.error(error.message);
-    else { toast.success("Welcome back!"); navigate("/"); }
+    if (error) {
+      toast.error(error.message);
+      setIsLoading(false);
+      return;
+    }
+    toast.success("Welcome back!");
+    // redirect is handled by the useEffect above once user updates
   };
 
   const handleForgotPassword = async () => {
@@ -46,7 +55,7 @@ const SignInPage = () => {
     });
     setForgotLoading(false);
     if (error) toast.error(error.message);
-    else { toast.success("Password reset link sent to your email!"); setShowForgot(false); }
+    else { toast.success("Password reset link sent!"); setShowForgot(false); }
   };
 
   if (showForgot) {
@@ -67,7 +76,8 @@ const SignInPage = () => {
                   <Input type="email" value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} placeholder="you@email.com" className="pl-10" />
                 </div>
               </div>
-              <Button onClick={handleForgotPassword} className="w-full bg-primary text-primary-foreground hover:bg-primary-light font-heading uppercase tracking-wider" disabled={forgotLoading}>
+              <Button onClick={handleForgotPassword} disabled={forgotLoading}
+                className="w-full bg-primary text-primary-foreground font-heading uppercase tracking-wider">
                 {forgotLoading ? "Sending..." : "Send Reset Link"}
               </Button>
               <Button variant="ghost" onClick={() => setShowForgot(false)} className="w-full text-muted-foreground">
@@ -100,17 +110,27 @@ const SignInPage = () => {
             <div>
               <div className="flex justify-between items-center mb-1.5">
                 <label className="text-sm font-medium text-foreground">Password</label>
-                <button type="button" onClick={() => setShowForgot(true)} className="text-xs text-primary hover:underline">Forgot Password?</button>
+                <button type="button" onClick={() => setShowForgot(true)} className="text-xs text-primary hover:underline">
+                  Forgot Password?
+                </button>
               </div>
               <div className="relative">
                 <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="pl-10 pr-10" />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="pl-10 pr-10"
+                />
+                <button type="button" onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
             </div>
-            <Button type="submit" className="w-full bg-primary text-primary-foreground hover:bg-primary-light font-heading uppercase tracking-wider" disabled={isLoading}>
+            <Button type="submit" disabled={isLoading}
+              className="w-full bg-primary text-primary-foreground hover:bg-primary-light font-heading uppercase tracking-wider">
               {isLoading ? "Signing in..." : "Sign In"}
             </Button>
           </form>
