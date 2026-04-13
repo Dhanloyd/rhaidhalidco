@@ -86,7 +86,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         data: { display_name: name || email, phone: phone || "" },
       },
     });
-    // Update profile with phone if provided
     if (!error && data.user && phone) {
       await supabase.from("profiles").update({ phone }).eq("user_id", data.user.id);
     }
@@ -95,6 +94,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    // Clear state immediately
+    setSession(null);
+    setUser(null);
+    setIsAdmin(false);
+    setDisplayName(null);
+    // Hard redirect so all state is fully cleared
+    window.location.href = "/";
   };
 
   return (

@@ -1,4 +1,4 @@
-import { LayoutDashboard, ShoppingCart, Package, CreditCard, LogOut, Home, Newspaper, Star, Users, UserCheck, Calendar, FileText, Share2, BarChart3, Tag, Zap, Truck, Phone, Info } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, Package, CreditCard, LogOut, Home, Newspaper, Star, Users, UserCheck, Calendar, FileText, Share2, BarChart3, Tag, Zap, Truck, Phone, Info, ClipboardList, Smartphone } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -9,27 +9,29 @@ import {
 import { Button } from "@/components/ui/button";
 
 const navItems = [
-  { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
-  { title: "Orders", url: "/admin/orders", icon: ShoppingCart },
-  { title: "Products", url: "/admin/products", icon: Package },
-  { title: "Inventory", url: "/admin/inventory", icon: Truck },
-  { title: "POS", url: "/admin/pos", icon: CreditCard },
-  { title: "Analytics", url: "/admin/analytics", icon: BarChart3 },
-  { title: "Vouchers", url: "/admin/vouchers", icon: Tag },
-  { title: "Flash Sales", url: "/admin/flash-sales", icon: Zap },
-  { title: "Suppliers", url: "/admin/suppliers", icon: Users },
+  { title: "Dashboard",       url: "/admin",              icon: LayoutDashboard },
+  { title: "Orders",          url: "/admin/orders",       icon: ShoppingCart },
+  { title: "Products",        url: "/admin/products",     icon: Package },
+  { title: "Inventory",       url: "/admin/inventory",    icon: Truck },
+  { title: "POS",             url: "/admin/pos",          icon: CreditCard },
+  { title: "Analytics",       url: "/admin/analytics",    icon: BarChart3 },
+  { title: "Vouchers",        url: "/admin/vouchers",     icon: Tag },
+  { title: "Flash Sales",     url: "/admin/flash-sales",  icon: Zap },
+  { title: "Suppliers",       url: "/admin/suppliers",    icon: Users },
+  { title: "Reports",         url: "/admin/reports",      icon: ClipboardList },
+  { title: "GCash Settings",  url: "/admin/payment-settings", icon: Smartphone },
 ];
 
 const cmsItems = [
-  { title: "News", url: "/admin/news", icon: Newspaper },
-  { title: "Highlights", url: "/admin/highlights", icon: Star },
-  { title: "Founders", url: "/admin/founders", icon: UserCheck },
-  { title: "Players", url: "/admin/players", icon: Users },
-  { title: "Activities", url: "/admin/activities", icon: Calendar },
-  { title: "Page Content", url: "/admin/pages", icon: FileText },
-  { title: "About Page", url: "/admin/pages/about", icon: Info },
-  { title: "Contact Page", url: "/admin/pages/contact", icon: Phone },
-  { title: "Social Links", url: "/admin/social-links", icon: Share2 },
+  { title: "News",         url: "/admin/news",           icon: Newspaper },
+  { title: "Highlights",   url: "/admin/highlights",     icon: Star },
+  { title: "Founders",     url: "/admin/founders",       icon: UserCheck },
+  { title: "Players",      url: "/admin/players",        icon: Users },
+  { title: "Activities",   url: "/admin/activities",     icon: Calendar },
+  { title: "Page Content", url: "/admin/pages",          icon: FileText },
+  { title: "About Page",   url: "/admin/pages/about",    icon: Info },
+  { title: "Contact Page", url: "/admin/pages/contact",  icon: Phone },
+  { title: "Social Links", url: "/admin/social-links",   icon: Share2 },
 ];
 
 export function AdminSidebar() {
