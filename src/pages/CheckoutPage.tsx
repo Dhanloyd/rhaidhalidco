@@ -161,74 +161,68 @@ const CheckoutPage = () => {
   // ──────────────────────────────────────────
   // 💳 PAYMONGO — Direct API call (no edge function)
   // ──────────────────────────────────────────
-  const handlePayMongoCheckout = async () => {
-    setProcessing(true);
-    try {
-      // 1. Create the order first (status: pending)
-      const newOrderId = await createOrder();
-      setOrderId(newOrderId);
+ const handlePayMongoCheckout = async () => {
+  setProcessing(true);
+  try {
+    const newOrderId = await createOrder();
+    setOrderId(newOrderId);
 
-      // 2. Call PayMongo directly from frontend
-      const SECRET_KEY = "sk_live_Lo3hwj4HVj74HEcbq7hqJoqM";
-      const BASE64_KEY = btoa(`${SECRET_KEY}:`);
+    // Use PayMongo's client-side checkout via payment link
+    const PUBLIC_KEY = "pk_live_Lo3hwj4HVj74HEcbq7hqJoqM";
+    const BASE64_KEY = btoa(`${PUBLIC_KEY}:`);
 
-      const lineItems = items.map((i) => ({
-        currency: "PHP",
-        amount: Math.round((i.product?.price || 0) * 100),
-        name: i.product?.name || "Item",
-        quantity: i.quantity,
-      }));
-
-      const response = await fetch("https://api.paymongo.com/v1/checkout_sessions", {
-        method: "POST",
-        headers: {
-          Authorization: `Basic ${BASE64_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          data: {
-            attributes: {
-              billing: {
-                name: shipping.full_name,
-                email: user.email,
-              },
-              send_email_receipt: true,
-              show_description: true,
-              show_line_items: true,
-              line_items: lineItems,
-              payment_method_types: ["gcash", "card", "maya", "grab_pay"],
-              description: `Order #${newOrderId?.slice(0, 8).toUpperCase()}`,
-              success_url: `${window.location.origin}/checkout/success?order_id=${newOrderId}`,
-              cancel_url: `${window.location.origin}/checkout/cancel?order_id=${newOrderId}`,
+    const response = await fetch("https://api.paymongo.com/v1/checkout_sessions", {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${BASE64_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        data: {
+          attributes: {
+            billing: {
+              name: shipping.full_name,
+              email: user.email,
             },
+            send_email_receipt: true,
+            show_description: true,
+            show_line_items: true,
+            line_items: items.map((i) => ({
+              currency: "PHP",
+              amount: Math.round((i.product?.price || 0) * 100),
+              name: i.product?.name || "Item",
+              quantity: i.quantity,
+            })),
+            payment_method_types: ["gcash", "card", "maya", "grab_pay"],
+            description: `Order #${newOrderId?.slice(0, 8).toUpperCase()}`,
+            success_url: `${window.location.origin}/checkout/success?order_id=${newOrderId}`,
+            cancel_url: `${window.location.origin}/checkout/cancel?order_id=${newOrderId}`,
           },
-        }),
-      });
+        },
+      }),
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.errors?.[0]?.detail || "PayMongo error");
-      }
-
-      const checkoutUrl = data.data.attributes.checkout_url;
-      const sessionId = data.data.id;
-
-      // 3. Save PayMongo session ID to order
-      await supabase.from("orders")
-        .update({ paymongo_session_id: sessionId })
-        .eq("id", newOrderId);
-
-      await clearCart();
-
-      // 4. Redirect to PayMongo hosted checkout
-      window.location.href = checkoutUrl;
-
-    } catch (err: any) {
-      toast.error(err.message || "Payment failed. Please try again.");
-      setProcessing(false);
+    if (!response.ok) {
+      throw new Error(data.errors?.[0]?.detail || "PayMongo error");
     }
-  };
+
+    const checkoutUrl = data.data.attributes.checkout_url;
+    const sessionId = data.data.id;
+
+    await supabase.from("orders")
+      .update({ paymongo_session_id: sessionId })
+      .eq("id", newOrderId);
+
+    await clearCart();
+    window.location.href = checkoutUrl;
+
+  } catch (err: any) {
+    toast.error(err.message || "Payment failed. Please try again.");
+    setProcessing(false);
+  }
+};
 
   // ──────────────────────────────────────────
   // 💵 COD — Place order directly
