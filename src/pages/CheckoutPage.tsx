@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
@@ -163,18 +164,24 @@ const CheckoutPage = () => {
   // ──────────────────────────────────────────
   const handlePayMongoCheckout = async () => {
     setProcessing(true);
+    let newOrderId: string | null = null;
     try {
-      const newOrderId = await createOrder();
+      newOrderId = await createOrder();
       setOrderId(newOrderId);
+
+      // ✅ Pass siteUrl from frontend so VERCEL_API doesn't need SITE_URL env var
+      const siteUrl = window.location.origin;
 
       const response = await fetch(VERCEL_API, {
         method: "POST",
+        mode: "cors", // ✅ explicit CORS mode
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           amount: grandTotal,
           orderId: newOrderId,
           customerName: shipping.full_name,
           customerEmail: user.email,
+          siteUrl, // ✅ pass site URL so API can build success/cancel URLs
           items: items.map((i) => ({
             name: i.product?.name || "Item",
             price: i.product?.price || 0,
@@ -197,6 +204,12 @@ const CheckoutPage = () => {
       window.location.href = data.checkoutUrl;
 
     } catch (err: any) {
+      // ✅ Cancel the orphan order if PayMongo failed
+      if (newOrderId) {
+        await supabase.from("orders")
+          .update({ status: "cancelled", payment_status: "failed" })
+          .eq("id", newOrderId);
+      }
       toast.error(err.message || "Payment failed. Please try again.");
       setProcessing(false);
     }
@@ -230,7 +243,7 @@ const CheckoutPage = () => {
   const paymentMethods = [
     { id: "cod", label: "Cash on Delivery", icon: "💵", desc: "Pay when your order arrives" },
     {
-      id: "gcash", label: "GCash", icon: "📱",
+      id: "gcash", label: "GCash / GrabPay", icon: "📱",
       desc: "Pay via GCash — you'll be redirected to a secure payment page",
     },
     {
