@@ -116,14 +116,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return { error: error as Error | null };
   };
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
-    setSession(null);
-    setUser(null);
-    setIsAdmin(false);
-    setDisplayName(null);
-    window.location.href = "/";
-  };
+ const signOut = async () => {
+  try {
+    await supabase.auth.signOut({ scope: "local" });
+  } catch (_) {
+    // ignore errors — we still want to clear state
+  }
+  // Clear all supabase keys from localStorage
+  Object.keys(localStorage).forEach((key) => {
+    if (key.startsWith("sb-")) localStorage.removeItem(key);
+  });
+  setSession(null);
+  setUser(null);
+  setIsAdmin(false);
+  setDisplayName(null);
+  window.location.href = "/";
+};
 
   return (
     <AuthContext.Provider value={{ session, user, isAdmin, loading, displayName, signIn, signUp, signOut }}>
