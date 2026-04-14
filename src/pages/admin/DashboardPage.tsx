@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { DollarSign, ShoppingCart, Package, AlertTriangle, TrendingUp, ArrowUpRight, RefreshCw, Activity, Flame } from "lucide-react";
+import { DollarSign, ShoppingCart, Package, AlertTriangle, TrendingUp, ArrowUpRight, RefreshCw, Activity, Flame, PhilippinePesoIcon } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import { toast } from "sonner";
 
@@ -79,7 +79,7 @@ const DashboardPage = () => {
   }, [fetchDashboardData]);
 
   const statCards = [
-    { title: "Total Revenue", value: `₱${stats.completedRevenue.toLocaleString()}`, icon: DollarSign, iconBg: "bg-emerald-500/20", iconColor: "text-emerald-400" },
+    { title: "Total Revenue", value: `₱${stats.completedRevenue.toLocaleString()}`, icon: PhilippinePesoIcon, iconBg: "bg-emerald-500/20", iconColor: "text-emerald-400" },
     { title: "Completed Orders", value: stats.completedOrders, icon: ShoppingCart, iconBg: "bg-blue-500/20", iconColor: "text-blue-400" },
     { title: "Total Products", value: stats.totalProducts, icon: Package, iconBg: "bg-violet-500/20", iconColor: "text-violet-400" },
     { title: "Stock Alerts", value: stats.lowStockCount, icon: AlertTriangle, iconBg: "bg-amber-500/20", iconColor: "text-amber-400" },
