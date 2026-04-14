@@ -46,27 +46,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
   let initialised = false;
 
-  const { data: { subscription } } = supabase.auth.onAuthStateChange(
-    async (_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+ const { data: { subscription } } = supabase.auth.onAuthStateChange(
+  async (_event, session) => {
+    setSession(session);
+    setUser(session?.user ?? null);
 
-      if (session?.user) {
-        await Promise.all([
-          checkAdmin(session.user.id),
-          fetchProfile(session.user.id),
-        ]);
-      } else {
-        setIsAdmin(false);
-        setDisplayName(null);
-      }
-
-      if (initialised) {
-        setLoading(false);
-      }
+    if (session?.user) {
+      await Promise.all([
+        checkAdmin(session.user.id),
+        fetchProfile(session.user.id),
+      ]);
+    } else {
+      setIsAdmin(false);
+      setDisplayName(null);
     }
-  );
 
+    setLoading(false); // ✅ ALWAYS stop loading
+  }
+);
   supabase.auth.getSession().then(async ({ data: { session } }) => {
     // ✅ If session is expired, sign out automatically
     if (session) {
