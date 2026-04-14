@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-// Fix Leaflet default icon issue
+// Fix marker icons
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl:
@@ -20,7 +20,7 @@ type Props = {
   setLocation: (lat: number, lng: number) => void;
 };
 
-// 🔥 Auto move map when search updates location
+// smooth move
 const FlyTo = ({ lat, lng }: { lat: number; lng: number }) => {
   const map = useMap();
 
@@ -33,19 +33,16 @@ const FlyTo = ({ lat, lng }: { lat: number; lng: number }) => {
   return null;
 };
 
-const LocationPicker = ({ lat, lng, setLocation }: Props) => {
-  const [position, setPosition] = useState<[number, number]>([
-    lat,
-    lng,
-  ]);
+export default function LocationPicker({ lat, lng, setLocation }: Props) {
+  const [pos, setPos] = useState<[number, number]>([lat, lng]);
 
   useEffect(() => {
-    setPosition([lat, lng]);
+    setPos([lat, lng]);
   }, [lat, lng]);
 
   return (
     <MapContainer
-      center={position}
+      center={pos}
       zoom={15}
       style={{ height: "320px", width: "100%", borderRadius: "12px" }}
     >
@@ -54,12 +51,8 @@ const LocationPicker = ({ lat, lng, setLocation }: Props) => {
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
-      <Marker position={position} />
-
-      {/* smooth movement */}
+      <Marker position={pos} />
       <FlyTo lat={lat} lng={lng} />
     </MapContainer>
   );
-};
-
-export default LocationPicker;
+}

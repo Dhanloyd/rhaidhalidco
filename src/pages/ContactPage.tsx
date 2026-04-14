@@ -4,7 +4,7 @@ import { MapContainer, TileLayer, Marker } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
-// fix icon
+// fix marker
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl:
@@ -15,7 +15,7 @@ L.Icon.Default.mergeOptions({
     "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
 
-const ContactPage = () => {
+export default function ContactPage() {
   const [data, setData] = useState<any>(null);
 
   useEffect(() => {
@@ -26,7 +26,10 @@ const ContactPage = () => {
       .eq("is_deleted", false)
       .maybeSingle()
       .then(({ data }) => {
-        if (data) setData(data.content);
+        if (!data) return;
+
+        // 🔥 FIX: content extraction
+        setData(data.content ?? data);
       });
   }, []);
 
@@ -34,30 +37,24 @@ const ContactPage = () => {
 
   return (
     <div className="space-y-4">
-
       <h1>{data.hero_title}</h1>
       <p>{data.hero_subtitle}</p>
 
       <p>{data.address}</p>
-      <p>{data.phone}</p>
-      <p>{data.email}</p>
 
       {/* MAP */}
-      <div className="rounded-xl overflow-hidden border">
+      {data.map_lat && data.map_lng ? (
         <MapContainer
           center={[data.map_lat, data.map_lng]}
           zoom={15}
           style={{ height: "300px", width: "100%" }}
         >
-          <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
+          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
           <Marker position={[data.map_lat, data.map_lng]} />
         </MapContainer>
-      </div>
-
+      ) : (
+        <p>No map location set</p>
+      )}
     </div>
   );
-};
-
-export default ContactPage;
+}
