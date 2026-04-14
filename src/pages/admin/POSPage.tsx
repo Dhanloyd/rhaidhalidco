@@ -7,12 +7,19 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Minus, ShoppingCart, Trash2, CreditCard, Receipt, Barcode } from "lucide-react";
+import { Plus, Minus, ShoppingCart, Trash2, CreditCard, Receipt, Barcode, Building2 } from "lucide-react";
 
 interface Product {
   id: string; name: string; price: number; category: string; image_url: string | null; barcode: string | null; sku: string | null; stock_quantity: number;
 }
 interface CartItem { product: Product; quantity: number; discount: number; }
+
+const DEFAULT_COMPANY = {
+  name: "RaidKhalid & Co.",
+  tin: "000-000-000-000",
+  address: "123 Main Street, City, Province",
+  vatRate: 12,
+};
 
 const POSPage = () => {
   const { user } = useAuth();
@@ -23,10 +30,19 @@ const POSPage = () => {
   const [cashReceived, setCashReceived] = useState(0);
   const [search, setSearch] = useState("");
   const [processing, setProcessing] = useState(false);
-  const [receiptDialog, setReceiptDialog] = useState(false);
-  const [lastReceipt, setLastReceipt] = useState<any>(null);
   const [discountAmount, setDiscountAmount] = useState(0);
   const barcodeRef = useRef<HTMLInputElement>(null);
+
+  // Checkout preview modal
+  const [checkoutDialog, setCheckoutDialog] = useState(false);
+  const [companyName, setCompanyName] = useState(DEFAULT_COMPANY.name);
+  const [tinNo, setTinNo] = useState(DEFAULT_COMPANY.tin);
+  const [address, setAddress] = useState(DEFAULT_COMPANY.address);
+  const [vatRate, setVatRate] = useState(DEFAULT_COMPANY.vatRate);
+
+  // Final receipt modal
+  const [receiptDialog, setReceiptDialog] = useState(false);
+  const [lastReceipt, setLastReceipt] = useState<any>(null);
 
   useEffect(() => {
     supabase.from("products").select("id, name, price, category, image_url, barcode, sku, stock_quantity").eq("in_stock", true).order("name").then(({ data }) => setProducts(data || []));
@@ -66,61 +82,77 @@ const POSPage = () => {
   const removeFromCart = (id: string) => setCart((prev) => prev.filter((c) => c.product.id !== id));
 
   const subtotal = cart.reduce((s, c) => s + c.product.price * c.quantity, 0);
-  const total = Math.max(0, subtotal - discountAmount);
+  const discountedSubtotal = Math.max(0, subtotal - discountAmount);
+  // VAT-inclusive calculation: vatAmount = total * vatRate / (100 + vatRate)
+  const vatAmount = discountedSubtotal * (vatRate / (100 + vatRate));
+  const total = discountedSubtotal;
   const change = Math.max(0, cashReceived - total);
 
-  const generateReceiptNo = () => `POS-${Date.now().toString(36).toUpperCase()}`;
+  const generateReceiptNo = () => `OR-${Date.now().toString(36).toUpperCase()}`;
 
-  const handleCheckout = async () => {
+  // Open checkout preview
+  const handleOpenCheckout = () => {
     if (cart.length === 0) { toast.error("Cart is empty"); return; }
+    setCheckoutDialog(true);
+  };
+
+  // Proceed from checkout preview → process transaction
+  const handleProceed = async () => {
     if (paymentMethod === "cash" && cashReceived < total) { toast.error("Insufficient cash"); return; }
 
     setProcessing(true);
     const receiptNumber = generateReceiptNo();
+    const now = new Date();
 
-    // Insert POS transaction
     const { error } = await supabase.from("pos_transactions").insert({
       cashier_id: user?.id || "",
       items: cart.map((c) => ({ id: c.product.id, name: c.product.name, price: c.product.price, quantity: c.quantity, discount: c.discount })),
       subtotal,
       discount: discountAmount,
+      vat_rate: vatRate,
+      vat_amount: vatAmount,
       total,
       cash_received: cashReceived,
       change_amount: change,
       payment_method: paymentMethod,
       receipt_number: receiptNumber,
       customer_name: customerName,
+      company_name: companyName,
+      tin_number: tinNo,
+      company_address: address,
     });
 
     if (error) { toast.error("Transaction failed"); setProcessing(false); return; }
 
-    // Also create an order record
     await supabase.from("orders").insert({
       customer_name: customerName,
       items: cart.map((c) => ({ id: c.product.id, name: c.product.name, price: c.product.price, quantity: c.quantity })),
-      total,
-      subtotal,
-      discount: discountAmount,
-      status: "completed",
-      payment_method: paymentMethod,
-      order_type: "pos",
+      total, subtotal, discount: discountAmount,
+      status: "completed", payment_method: paymentMethod, order_type: "pos",
     });
 
-    // Deduct stock
     for (const item of cart) {
       const newStock = Math.max(0, item.product.stock_quantity - item.quantity);
       await supabase.from("products").update({ stock_quantity: newStock, sold_count: item.product.stock_quantity + item.quantity, in_stock: newStock > 0 }).eq("id", item.product.id);
       await supabase.from("inventory_logs").insert({
-        product_id: item.product.id,
-        change_type: "sold",
-        quantity_change: -item.quantity,
-        quantity_before: item.product.stock_quantity,
-        quantity_after: newStock,
+        product_id: item.product.id, change_type: "sold",
+        quantity_change: -item.quantity, quantity_before: item.product.stock_quantity, quantity_after: newStock,
         notes: `POS Sale: ${receiptNumber}`,
       });
     }
 
-    setLastReceipt({ items: [...cart], subtotal, discount: discountAmount, total, cash_received: cashReceived, change, payment_method: paymentMethod, receipt_number: receiptNumber, customer_name: customerName, date: new Date().toLocaleString() });
+    setLastReceipt({
+      items: [...cart], subtotal, discount: discountAmount,
+      vatRate, vatAmount, total,
+      cash_received: cashReceived, change,
+      payment_method: paymentMethod, receipt_number: receiptNumber,
+      customer_name: customerName,
+      date: now.toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" }),
+      time: now.toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+      companyName, tinNo, address,
+    });
+
+    setCheckoutDialog(false);
     setReceiptDialog(true);
     setCart([]);
     setCustomerName("Walk-in Customer");
@@ -128,12 +160,13 @@ const POSPage = () => {
     setDiscountAmount(0);
     setProcessing(false);
 
-    // Refresh products
     const { data } = await supabase.from("products").select("id, name, price, category, image_url, barcode, sku, stock_quantity").eq("in_stock", true).order("name");
     setProducts(data || []);
   };
 
-  const filteredProducts = products.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()) || p.barcode?.includes(search) || p.sku?.toLowerCase().includes(search.toLowerCase()));
+  const filteredProducts = products.filter((p) =>
+    p.name.toLowerCase().includes(search.toLowerCase()) || p.barcode?.includes(search) || p.sku?.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
     <div className="space-y-4">
@@ -225,41 +258,221 @@ const POSPage = () => {
                 </div>
               )}
 
-              <Button onClick={handleCheckout} disabled={cart.length === 0 || processing} className="w-full bg-primary text-primary-foreground font-heading uppercase tracking-wider">
-                {processing ? "Processing..." : `Checkout ₱${total.toLocaleString()}`}
+              <Button
+                onClick={handleOpenCheckout}
+                disabled={cart.length === 0}
+                className="w-full bg-primary text-primary-foreground font-heading uppercase tracking-wider"
+              >
+                Checkout ₱{total.toLocaleString()}
               </Button>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Receipt Dialog */}
-      <Dialog open={receiptDialog} onOpenChange={setReceiptDialog}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle className="font-heading uppercase tracking-wider text-center">Receipt</DialogTitle></DialogHeader>
-          {lastReceipt && (
-            <div className="text-center space-y-3 font-mono text-sm">
-              <div className="border-b border-dashed border-border pb-2">
-                <p className="font-heading text-lg">RaidKhalid & Co.</p>
-                <p className="text-xs text-muted-foreground">{lastReceipt.date}</p>
-                <p className="text-xs text-muted-foreground">Receipt: {lastReceipt.receipt_number}</p>
+      {/* ── Checkout Preview Dialog ── */}
+      <Dialog open={checkoutDialog} onOpenChange={setCheckoutDialog}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-heading uppercase tracking-wider text-center flex items-center justify-center gap-2">
+              <Building2 size={16} /> Checkout Preview
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 font-mono text-sm">
+            {/* Editable company info */}
+            <div className="bg-muted/40 rounded-lg p-3 space-y-2">
+              <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-sans mb-1">Company Details (Editable)</p>
+              <div className="space-y-1">
+                <label className="text-[10px] text-muted-foreground font-sans uppercase tracking-wider">Company Name</label>
+                <Input className="h-8 text-sm font-mono" value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
               </div>
-              <div className="text-left space-y-1">
-                {lastReceipt.items.map((item: any, i: number) => (
-                  <div key={i} className="flex justify-between text-xs">
-                    <span>{item.product.name} ×{item.quantity}</span>
-                    <span>₱{(item.product.price * item.quantity).toLocaleString()}</span>
+              <div className="space-y-1">
+                <label className="text-[10px] text-muted-foreground font-sans uppercase tracking-wider">TIN No.</label>
+                <Input className="h-8 text-sm font-mono" value={tinNo} onChange={(e) => setTinNo(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] text-muted-foreground font-sans uppercase tracking-wider">Address</label>
+                <Input className="h-8 text-sm font-mono" value={address} onChange={(e) => setAddress(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] text-muted-foreground font-sans uppercase tracking-wider">VAT Rate (%)</label>
+                <Input type="number" className="h-8 text-sm font-mono" value={vatRate} onChange={(e) => setVatRate(parseFloat(e.target.value) || 0)} />
+              </div>
+            </div>
+
+            {/* Receipt preview */}
+            <div className="border border-dashed border-border rounded-lg p-4 space-y-3 bg-white text-black dark:bg-zinc-900 dark:text-white">
+              {/* Header */}
+              <div className="text-center space-y-0.5">
+                <div className="flex justify-center mb-1">
+                  <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                    <Building2 size={20} className="text-primary" />
+                  </div>
+                </div>
+                <p className="font-bold text-base tracking-wide">{companyName}</p>
+                <p className="text-[11px] text-muted-foreground">TIN: {tinNo}</p>
+                <p className="text-[11px] text-muted-foreground">{address}</p>
+                <p className="text-[11px] text-muted-foreground">{new Date().toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" })} · {new Date().toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit" })}</p>
+              </div>
+
+              <div className="border-t border-dashed border-border/60" />
+              <p className="text-center font-bold text-sm uppercase tracking-widest">Official Receipt</p>
+              <div className="border-t border-dashed border-border/60" />
+
+              {/* Items */}
+              <div className="space-y-1">
+                <div className="flex justify-between text-[10px] text-muted-foreground uppercase tracking-wider font-sans">
+                  <span className="flex-1">Item</span>
+                  <span className="w-8 text-center">Qty</span>
+                  <span className="w-20 text-right">Amount</span>
+                </div>
+                <div className="border-t border-border/40" />
+                {cart.map((item) => (
+                  <div key={item.product.id} className="flex justify-between text-xs">
+                    <span className="flex-1 truncate pr-2">{item.product.name}</span>
+                    <span className="w-8 text-center">{item.quantity}</span>
+                    <span className="w-20 text-right">₱{(item.product.price * item.quantity).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                   </div>
                 ))}
               </div>
-              <div className="border-t border-dashed border-border pt-2 text-left space-y-1">
-                <div className="flex justify-between text-xs"><span>Subtotal</span><span>₱{lastReceipt.subtotal.toLocaleString()}</span></div>
-                {lastReceipt.discount > 0 && <div className="flex justify-between text-xs"><span>Discount</span><span>-₱{lastReceipt.discount.toLocaleString()}</span></div>}
-                <div className="flex justify-between font-bold"><span>Total</span><span>₱{lastReceipt.total.toLocaleString()}</span></div>
-                <div className="flex justify-between text-xs"><span>Paid ({lastReceipt.payment_method})</span><span>₱{lastReceipt.cash_received.toLocaleString()}</span></div>
-                {lastReceipt.change > 0 && <div className="flex justify-between text-xs"><span>Change</span><span>₱{lastReceipt.change.toLocaleString()}</span></div>}
+
+              <div className="border-t border-dashed border-border/60" />
+
+              {/* Totals */}
+              <div className="space-y-1 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Subtotal</span>
+                  <span>₱{subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+                {discountAmount > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Discount</span>
+                    <span>-₱{discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">VAT ({vatRate}%)</span>
+                  <span>₱{vatAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="border-t border-border/40 pt-1 flex justify-between font-bold text-sm">
+                  <span>TOTAL</span>
+                  <span>₱{total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+                {paymentMethod === "cash" && (
+                  <>
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Cash Received</span>
+                      <span>₱{cashReceived.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Change</span>
+                      <span>₱{change.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  </>
+                )}
               </div>
-              <p className="text-xs text-muted-foreground pt-2">Thank you for your purchase!</p>
+
+              <div className="border-t border-dashed border-border/60" />
+              <p className="text-center text-[10px] text-muted-foreground">Customer: {customerName}</p>
+              <p className="text-center text-[10px] text-muted-foreground">Payment: {paymentMethod.toUpperCase()}</p>
+            </div>
+
+            <Button
+              onClick={handleProceed}
+              disabled={processing || (paymentMethod === "cash" && cashReceived < total)}
+              className="w-full bg-primary text-primary-foreground font-heading uppercase tracking-wider"
+            >
+              {processing ? "Processing..." : "Proceed & Confirm"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Final Receipt Dialog ── */}
+      <Dialog open={receiptDialog} onOpenChange={setReceiptDialog}>
+        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-heading uppercase tracking-wider text-center">Official Receipt</DialogTitle>
+          </DialogHeader>
+
+          {lastReceipt && (
+            <div className="font-mono text-sm space-y-3" id="print-receipt">
+              {/* Header */}
+              <div className="text-center space-y-0.5">
+                <div className="flex justify-center mb-1">
+                  <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                    <Building2 size={20} className="text-primary" />
+                  </div>
+                </div>
+                <p className="font-bold text-base tracking-wide">{lastReceipt.companyName}</p>
+                <p className="text-[11px] text-muted-foreground">TIN: {lastReceipt.tinNo}</p>
+                <p className="text-[11px] text-muted-foreground">{lastReceipt.address}</p>
+                <p className="text-[11px] text-muted-foreground">{lastReceipt.date}</p>
+                <p className="text-[11px] text-muted-foreground">{lastReceipt.time}</p>
+              </div>
+
+              <div className="border-t border-dashed border-border" />
+              <p className="text-center font-bold text-sm uppercase tracking-widest">Official Receipt</p>
+              <p className="text-center text-[10px] text-muted-foreground">{lastReceipt.receipt_number}</p>
+              <div className="border-t border-dashed border-border" />
+
+              {/* Items */}
+              <div className="space-y-1">
+                <div className="flex justify-between text-[10px] text-muted-foreground uppercase tracking-wider">
+                  <span className="flex-1">Item</span>
+                  <span className="w-8 text-center">Qty</span>
+                  <span className="w-20 text-right">Amount</span>
+                </div>
+                <div className="border-t border-border/40" />
+                {lastReceipt.items.map((item: any, i: number) => (
+                  <div key={i} className="flex justify-between text-xs">
+                    <span className="flex-1 truncate pr-2">{item.product.name}</span>
+                    <span className="w-8 text-center">{item.quantity}</span>
+                    <span className="w-20 text-right">₱{(item.product.price * item.quantity).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="border-t border-dashed border-border" />
+
+              {/* Totals */}
+              <div className="space-y-1 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Subtotal</span>
+                  <span>₱{lastReceipt.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+                {lastReceipt.discount > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Discount</span>
+                    <span>-₱{lastReceipt.discount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">VAT ({lastReceipt.vatRate}%)</span>
+                  <span>₱{lastReceipt.vatAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="border-t border-border/40 pt-1 flex justify-between font-bold text-sm">
+                  <span>TOTAL</span>
+                  <span>₱{lastReceipt.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Paid ({lastReceipt.payment_method.toUpperCase()})</span>
+                  <span>₱{lastReceipt.cash_received.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+                {lastReceipt.change > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Change</span>
+                    <span>₱{lastReceipt.change.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t border-dashed border-border" />
+              <p className="text-center text-[10px] text-muted-foreground">Customer: {lastReceipt.customer_name}</p>
+              <p className="text-center text-xs text-muted-foreground pt-1">Thank you for your purchase!</p>
+              <p className="text-center text-[10px] text-muted-foreground">This serves as your official receipt.</p>
+
               <Button variant="outline" className="w-full mt-2" onClick={() => window.print()}>
                 <Receipt size={14} className="mr-2" /> Print Receipt
               </Button>
