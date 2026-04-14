@@ -46,6 +46,7 @@ import AdminReportsPage from "./pages/admin/AdminReportsPage";
 import NotFound from "./pages/NotFound";
 import CheckoutSuccess from "./pages/CheckoutSuccess";   
 import CheckoutCancel from "./pages/CheckoutCancel";
+import TransactionsPage from "./pages/admin/TransactionsPage";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -98,6 +99,7 @@ const App = () => (
               <Route path="/admin/pages/contact" element={<AdminLayout><AdminContactPage /></AdminLayout>} />
               <Route path="/admin/social-links" element={<AdminLayout><SocialLinksPage /></AdminLayout>} />
               <Route path="/admin/reports" element={<AdminLayout><AdminReportsPage /></AdminLayout>} />
+              <Route path="/admin/transactions" element={<AdminLayout><TransactionsPage /></AdminLayout>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </CartProvider>
