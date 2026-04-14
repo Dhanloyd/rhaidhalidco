@@ -86,7 +86,7 @@ const InventoryPage = () => {
 
   return (
     <div className="space-y-6">
-      <h1 className="font-heading text-2xl uppercase tracking-wider text-foreground">Inventory Management</h1>
+      <h1 className="font-heading text-2xl uppercase tracking-wider text-foreground text-white">Inventory Management</h1>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         {stats.map((s) => (

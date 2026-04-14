@@ -104,7 +104,7 @@ const DashboardPage = () => {
 
   return (
     <div className="min-h-screen p-6 space-y-6 relative"
-      style={{ background: "linear-gradient(135deg, #0f1117 0%, #141824 50%, #0f1117 100%)" }} >
+      style={{ background: "linear-gradient(135deg, #040d36 0%, #141824 50%, #0f1117 100%)" }} >
 
       {/* Background orbs */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">

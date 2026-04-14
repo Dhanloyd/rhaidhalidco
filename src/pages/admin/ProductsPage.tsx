@@ -88,9 +88,11 @@ const ProductsPage = () => {
   const filtered = products.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()) || p.sku?.toLowerCase().includes(search.toLowerCase()));
 
   return (
+   
+
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <h1 className="font-heading text-2xl uppercase tracking-wider text-foreground">Products</h1>
+        <h1 className="font-heading text-2xl uppercase tracking-wider text-foreground text-white">Products</h1>
         <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setForm(emptyForm); setEditId(null); } }}>
           <DialogTrigger asChild>
             <Button className="gap-2 bg-primary text-primary-foreground font-heading uppercase tracking-wider"><Plus size={16} /> Add Product</Button>

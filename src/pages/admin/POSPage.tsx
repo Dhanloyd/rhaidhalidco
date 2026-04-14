@@ -98,12 +98,20 @@ const POSPage = () => {
   };
 
   const removeFromCart = (id: string) => setCart((prev) => prev.filter((c) => c.product.id !== id));
+// ✅ COMPUTATIONS (REPLACE YOUR OLD VAT LOGIC)
+const subtotal = cart.reduce((s, c) => s + c.product.price * c.quantity, 0);
+const discountedSubtotal = Math.max(0, subtotal - discountAmount);
 
-  const subtotal = cart.reduce((s, c) => s + c.product.price * c.quantity, 0);
-  const discountedSubtotal = Math.max(0, subtotal - discountAmount);
-  const vatAmount = discountedSubtotal * ((receiptSettings.vat_rate || 0) / 100);
-  const total = discountedSubtotal + vatAmount;
-  const change = Math.max(0, cashReceived - total);
+// VAT-INCLUSIVE
+const vatRate = (receiptSettings.vat_rate || 0) / 100;
+
+const vatableSales = discountedSubtotal / (1 + vatRate);
+const vatAmount = discountedSubtotal - vatableSales;
+
+// TOTAL stays SAME (already includes VAT)
+const total = discountedSubtotal;
+
+const change = Math.max(0, cashReceived - total);
 
   const generateReceiptNo = () => `POS-${Date.now().toString(36).toUpperCase()}`;
 
@@ -193,7 +201,7 @@ const POSPage = () => {
 
   return (
     <div className="space-y-4">
-      <h1 className="font-heading text-2xl uppercase tracking-wider text-foreground">Point of Sale</h1>
+      <h1 className="font-heading text-2xl uppercase tracking-wider text-foreground text-white">Point of Sale</h1>
 
       <div className="grid lg:grid-cols-3 gap-4">
         {/* Products */}
@@ -295,115 +303,114 @@ const POSPage = () => {
         </Card>
       </div>
 
-      {/* ── Receipt Dialog ── */}
-      <Dialog open={receiptDialog} onOpenChange={setReceiptDialog}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="font-heading uppercase tracking-wider text-center sr-only">Receipt</DialogTitle>
-          </DialogHeader>
-          {lastReceipt && (
-            <div
-              id="printable-receipt"
-              className="font-mono text-xs text-foreground space-y-3"
-              style={{ maxWidth: 280, margin: "0 auto" }}
-            >
-              {/* ── Header ── */}
-              <div className="text-center space-y-0.5 pb-3 border-b border-dashed border-border">
-                {lastReceipt.logo_url && (
-                  <img
-                    src={lastReceipt.logo_url}
-                    alt="Logo"
-                    className="h-14 object-contain mx-auto mb-2"
-                  />
-                )}
-                <p className="font-bold text-sm">{lastReceipt.company_name}</p>
-                {lastReceipt.tin_no && (
-                  <p className="text-[10px] text-muted-foreground">TIN: {lastReceipt.tin_no}</p>
-                )}
-                {lastReceipt.address && (
-                  <p className="text-[10px] text-muted-foreground">{lastReceipt.address}</p>
-                )}
-                <p className="text-[10px] text-muted-foreground">{lastReceipt.date}</p>
-                <p className="text-[10px] text-muted-foreground">Receipt#: {lastReceipt.receipt_number}</p>
-                {lastReceipt.customer_name && lastReceipt.customer_name !== "Walk-in Customer" && (
-                  <p className="text-[10px] text-muted-foreground">Customer: {lastReceipt.customer_name}</p>
-                )}
-              </div>
-
-              {/* ── Title ── */}
-              <p className="text-center font-bold tracking-widest uppercase text-xs">
-                Official Receipt
-              </p>
-
-              {/* ── Column Headers ── */}
-              <div className="flex justify-between text-[10px] font-bold border-b border-border pb-1">
-                <span className="flex-1">Item</span>
-                <span className="w-8 text-center">Qty</span>
-                <span className="w-20 text-right">Amount</span>
-              </div>
-
-              {/* ── Items ── */}
-              <div className="space-y-0.5">
-                {lastReceipt.items.map((item: CartItem, i: number) => (
-                  <div key={i} className="flex justify-between text-[10px]">
-                    <span className="flex-1 truncate pr-1">{item.product.name}</span>
-                    <span className="w-8 text-center">{item.quantity}</span>
-                    <span className="w-20 text-right">
-                      ₱{(item.product.price * item.quantity).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              {/* ── Totals ── */}
-              <div className="border-t border-dashed border-border pt-2 space-y-0.5">
-                <div className="flex justify-between text-[10px]">
-                  <span>Subtotal</span>
-                  <span>₱{lastReceipt.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                </div>
-                {lastReceipt.discount > 0 && (
-                  <div className="flex justify-between text-[10px]">
-                    <span>Discount</span>
-                    <span>-₱{lastReceipt.discount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                  </div>
-                )}
-                {lastReceipt.vat_rate > 0 && (
-                  <div className="flex justify-between text-[10px]">
-                    <span>VAT ({lastReceipt.vat_rate}%)</span>
-                    <span>₱{lastReceipt.vat_amount.toFixed(2)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between font-bold text-xs pt-1 border-t border-border mt-1">
-                  <span>Total</span>
-                  <span>₱{lastReceipt.total.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-[10px]">
-                  <span>Paid ({lastReceipt.payment_method})</span>
-                  <span>₱{lastReceipt.cash_received.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                </div>
-                {lastReceipt.change > 0 && (
-                  <div className="flex justify-between text-[10px]">
-                    <span>Change</span>
-                    <span>₱{lastReceipt.change.toFixed(2)}</span>
-                  </div>
-                )}
-              </div>
-
-              <p className="text-center text-[10px] text-muted-foreground pt-1">
-                Thank you for your purchase!
-              </p>
-
-              <Button
-                variant="outline"
-                className="w-full mt-2"
-                onClick={() => window.print()}
-              >
-                <Receipt size={14} className="mr-2" /> Print Receipt
-              </Button>
-            </div>
+     {/* ── Receipt Dialog ── */}
+<Dialog open={receiptDialog} onOpenChange={setReceiptDialog}>
+  <DialogContent className="max-w-sm">
+    <DialogHeader>
+      <DialogTitle className="font-heading uppercase tracking-wider text-center sr-only">Receipt</DialogTitle>
+    </DialogHeader>
+    {lastReceipt && (
+      <div
+        id="printable-receipt"
+        className="font-mono text-xs text-foreground space-y-3"
+        style={{ maxWidth: 280, margin: "0 auto" }}
+      >
+        {/* ── Header ── */}
+        <div className="text-center space-y-0.5 pb-3 border-b border-dashed border-border">
+          {lastReceipt.logo_url && (
+            <img
+              src={lastReceipt.logo_url}
+              alt="Logo"
+              className="h-14 object-contain mx-auto mb-2"
+            />
           )}
-        </DialogContent>
-      </Dialog>
+          <p className="font-bold text-sm">{lastReceipt.company_name}</p>
+          {lastReceipt.tin_no && (
+            <p className="text-[10px] text-muted-foreground">TIN: {lastReceipt.tin_no}</p>
+          )}
+          {lastReceipt.address && (
+            <p className="text-[10px] text-muted-foreground">{lastReceipt.address}</p>
+          )}
+          <p className="text-[10px] text-muted-foreground">{lastReceipt.date}</p>
+          <p className="text-[10px] text-muted-foreground">Receipt#: {lastReceipt.receipt_number}</p>
+          {lastReceipt.customer_name && lastReceipt.customer_name !== "Walk-in Customer" && (
+            <p className="text-[10px] text-muted-foreground">Customer: {lastReceipt.customer_name}</p>
+          )}
+        </div>
+
+        {/* ── Title ── */}
+        <p className="text-center font-bold tracking-widest uppercase text-xs">
+          Official Receipt
+        </p>
+
+        {/* ── Items: Name on top, amount below ── */}
+        <div className="space-y-2">
+          {lastReceipt.items.map((item: CartItem, i: number) => (
+            <div key={i}>
+              <p className="text-[10px]">
+                {item.product.name}
+                {item.quantity > 1 && (
+                  <span className="text-muted-foreground ml-1">x{item.quantity}</span>
+                )}
+              </p>
+              <p className="text-[10px] text-right">
+                ₱{(item.product.price * item.quantity).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        {/* ── VATable Breakdown ── */}
+{(() => {
+  const total = lastReceipt.total;
+  const vatRate = lastReceipt.vat_rate; // e.g. 12
+  const divisor = 1 + vatRate / 100;   // e.g. 1.12
+  const vatableSales = total / divisor;
+  const vatAmount = total - vatableSales;
+
+  return (
+    <div className="border-t border-dashed border-border pt-2 space-y-0.5">
+      <div className="flex justify-between text-[10px]">
+        <span>VATable Sales</span>
+        <span>₱{vatableSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+      </div>
+      <div className="flex justify-between text-[10px]">
+        <span>VAT ({vatRate}%)</span>
+        <span>₱{vatAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+      </div>
+      <div className="flex justify-between font-bold text-xs pt-1 border-t border-border mt-1">
+        <span>Total</span>
+        <span>₱{total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+      </div>
+      <div className="flex justify-between text-[10px]">
+        <span>Paid Cash</span>
+        <span>₱{lastReceipt.cash_received.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+      </div>
+      {lastReceipt.change > 0 && (
+        <div className="flex justify-between text-[10px]">
+          <span>Change</span>
+          <span>₱{lastReceipt.change.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+        </div>
+      )}
+    </div>
+  );
+})()}
+
+        <p className="text-center text-[10px] text-muted-foreground pt-1">
+          Thank you for your purchase!
+        </p>
+
+        <Button
+          variant="outline"
+          className="w-full mt-2"
+          onClick={() => window.print()}
+        >
+          <Receipt size={14} className="mr-2" /> Print Receipt
+        </Button>
+      </div>
+    )}
+  </DialogContent>
+</Dialog>
 
       {/* Print styles */}
       <style>{`

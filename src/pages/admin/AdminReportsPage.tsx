@@ -268,7 +268,7 @@ const AdminReportsPage = () => {
             <FileText size={20} className="text-primary" />
           </div>
           <div>
-            <h1 className="font-heading text-xl uppercase tracking-wider text-foreground">Reports</h1>
+            <h1 className="font-heading text-xl uppercase tracking-wider text-foreground text-white">Reports</h1>
             <p className="text-sm text-muted-foreground">Orders summary and export</p>
           </div>
         </div>
