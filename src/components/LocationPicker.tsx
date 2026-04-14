@@ -1,11 +1,9 @@
-"use client";
-
 import { MapContainer, TileLayer, Marker, useMap } from "react-leaflet";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-// Fix marker icons
+// Fix Leaflet default icon issue
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl:
@@ -22,15 +20,13 @@ type Props = {
   setLocation: (lat: number, lng: number) => void;
 };
 
-// 🔥 THIS MOVES THE MAP WHEN SEARCH CHANGES
-const FlyToLocation = ({ lat, lng }: { lat: number; lng: number }) => {
+// 🔥 Auto move map when search updates location
+const FlyTo = ({ lat, lng }: { lat: number; lng: number }) => {
   const map = useMap();
 
   useEffect(() => {
     if (lat && lng) {
-      map.flyTo([lat, lng], 15, {
-        duration: 1.5,
-      });
+      map.flyTo([lat, lng], 15, { duration: 1.2 });
     }
   }, [lat, lng]);
 
@@ -51,11 +47,7 @@ const LocationPicker = ({ lat, lng, setLocation }: Props) => {
     <MapContainer
       center={position}
       zoom={15}
-      style={{
-        height: "320px",
-        width: "100%",
-        borderRadius: "12px",
-      }}
+      style={{ height: "320px", width: "100%", borderRadius: "12px" }}
     >
       <TileLayer
         attribution="&copy; OpenStreetMap"
@@ -64,8 +56,8 @@ const LocationPicker = ({ lat, lng, setLocation }: Props) => {
 
       <Marker position={position} />
 
-      {/* 🔥 MAP ANIMATION CONTROL */}
-      <FlyToLocation lat={lat} lng={lng} />
+      {/* smooth movement */}
+      <FlyTo lat={lat} lng={lng} />
     </MapContainer>
   );
 };
