@@ -9,77 +9,75 @@ import { Save, RotateCcw } from "lucide-react";
 
 const defaultContent = {
   hero_title: "Contact Us",
-  hero_subtitle: "Get in touch with RaidKhalid & Co.",
-  address: "RK Arena, 123 Basketball Blvd, Manila, Philippines",
+  hero_subtitle: "Get in touch with us",
+  address: "RK Arena, Manila",
   phone: "+63 912 345 6789",
-  email: "hello@raidkhalid.co",
-  location_query: "RK Arena, Manila, Philippines",
+  email: "hello@email.com",
+  location_query: "RK Arena Manila Philippines",
 };
 
-const Label = ({ children }: { children: React.ReactNode }) => (
-  <label className="text-sm font-medium text-foreground block mb-1">
-    {children}
-  </label>
+const Label = ({ children }: any) => (
+  <label className="text-sm font-medium block mb-1">{children}</label>
 );
 
-const SectionHeading = ({ children }: { children: React.ReactNode }) => (
-  <h3 className="font-heading text-base uppercase tracking-wider text-foreground mb-4 pb-2 border-b border-border/50">
+const SectionHeading = ({ children }: any) => (
+  <h3 className="text-base font-bold uppercase mb-3 border-b pb-2">
     {children}
   </h3>
 );
 
-const AdminContactPage = () => {
+export default function AdminContactPage() {
   const [data, setData] = useState(defaultContent);
   const [recordId, setRecordId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // LOAD
   useEffect(() => {
     supabase
       .from("page_content")
       .select("*")
       .eq("page", "contact")
       .maybeSingle()
-      .then(({ data: row }) => {
-        if (row) {
-          setRecordId(row.id);
-          setData({ ...defaultContent, ...row.content });
+      .then(({ data }) => {
+        if (data) {
+          setRecordId(data.id);
+          setData({ ...defaultContent, ...data.content });
         }
       });
   }, []);
 
   const set = (key: string, value: string) =>
-    setData((d) => ({ ...d, [key]: value }));
+    setData((prev) => ({ ...prev, [key]: value }));
 
-  const persist = async (payload: typeof defaultContent) => {
+  // SAVE
+  const save = async (payload: any) => {
     setSaving(true);
 
+    const body = {
+      page: "contact",
+      content: payload,
+    };
+
     if (recordId) {
-      await supabase
-        .from("page_content")
-        .update({ content: payload })
-        .eq("id", recordId);
+      await supabase.from("page_content").update(body).eq("id", recordId);
     } else {
-      const { data: row } = await supabase
+      const { data } = await supabase
         .from("page_content")
-        .insert({ page: "contact", content: payload })
+        .insert(body)
         .select()
         .single();
 
-      if (row) setRecordId(row.id);
+      if (data) setRecordId(data.id);
     }
 
     setSaving(false);
+    toast.success("Saved successfully!");
   };
 
-  const handleSave = async () => {
-    await persist(data);
-    toast.success("Contact page saved!");
-  };
-
-  const handleReset = async () => {
+  const reset = async () => {
     setData(defaultContent);
-    await persist(defaultContent);
-    toast.success("Reset to defaults.");
+    await save(defaultContent);
+    toast.success("Reset done!");
   };
 
   const mapUrl = data.location_query
@@ -90,124 +88,83 @@ const AdminContactPage = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="font-heading text-2xl uppercase tracking-wider text-foreground">
-            Contact Page
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Edit the public Contact page content
-          </p>
-        </div>
+      <div className="flex justify-between">
+        <h1 className="text-2xl font-bold">Contact Page Admin</h1>
 
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={handleReset}
-            disabled={saving}
-            className="gap-2 font-heading uppercase tracking-wider"
-          >
+          <Button onClick={reset} variant="outline">
             <RotateCcw size={14} /> Reset
           </Button>
 
-          <Button
-            onClick={handleSave}
-            disabled={saving}
-            className="gap-2 bg-primary text-primary-foreground font-heading uppercase tracking-wider"
-          >
-            <Save size={16} /> {saving ? "Saving..." : "Save Changes"}
+          <Button onClick={() => save(data)} disabled={saving}>
+            <Save size={14} /> {saving ? "Saving..." : "Save"}
           </Button>
         </div>
       </div>
 
       <Card>
-        <CardContent className="pt-6 space-y-8">
+        <CardContent className="space-y-6 pt-6">
           {/* HERO */}
-          <div className="space-y-4">
-            <SectionHeading>Hero Section</SectionHeading>
+          <SectionHeading>Hero</SectionHeading>
 
-            <div>
-              <Label>Page Title</Label>
-              <Input
-                value={data.hero_title}
-                onChange={(e) => set("hero_title", e.target.value)}
-              />
-            </div>
-
-            <div>
-              <Label>Subtitle</Label>
-              <Textarea
-                rows={2}
-                value={data.hero_subtitle}
-                onChange={(e) => set("hero_subtitle", e.target.value)}
-              />
-            </div>
+          <div>
+            <Label>Title</Label>
+            <Input
+              value={data.hero_title}
+              onChange={(e) => set("hero_title", e.target.value)}
+            />
           </div>
 
-          {/* CONTACT INFO */}
-          <div className="space-y-4">
-            <SectionHeading>Contact Information</SectionHeading>
-
-            <div>
-              <Label>Address</Label>
-              <Input
-                value={data.address}
-                onChange={(e) => set("address", e.target.value)}
-              />
-            </div>
-
-            <div>
-              <Label>Phone</Label>
-              <Input
-                value={data.phone}
-                onChange={(e) => set("phone", e.target.value)}
-              />
-            </div>
-
-            <div>
-              <Label>Email</Label>
-              <Input
-                type="email"
-                value={data.email}
-                onChange={(e) => set("email", e.target.value)}
-              />
-            </div>
+          <div>
+            <Label>Subtitle</Label>
+            <Textarea
+              value={data.hero_subtitle}
+              onChange={(e) => set("hero_subtitle", e.target.value)}
+            />
           </div>
 
-          {/* LOCATION SEARCH */}
-          <div className="space-y-3">
-            <SectionHeading>Location Map</SectionHeading>
+          {/* CONTACT */}
+          <SectionHeading>Contact Info</SectionHeading>
 
-            <div>
-              <Label>Search Location</Label>
-              <Input
-                value={data.location_query}
-                onChange={(e) => set("location_query", e.target.value)}
-                placeholder="e.g. RK Arena Manila Philippines"
-              />
-              <p className="text-xs text-muted-foreground mt-1.5">
-                Type a place name — map will auto-generate.
-              </p>
-            </div>
+          <Input
+            placeholder="Address"
+            value={data.address}
+            onChange={(e) => set("address", e.target.value)}
+          />
 
-            {mapUrl && (
-              <div className="rounded-xl overflow-hidden border border-border/50">
-                <iframe
-                  src={mapUrl}
-                  width="100%"
-                  height="240"
-                  style={{ border: 0 }}
-                  loading="lazy"
-                  title="Location Map"
-                />
-              </div>
-            )}
-          </div>
+          <Input
+            placeholder="Phone"
+            value={data.phone}
+            onChange={(e) => set("phone", e.target.value)}
+          />
+
+          <Input
+            placeholder="Email"
+            value={data.email}
+            onChange={(e) => set("email", e.target.value)}
+          />
+
+          {/* LOCATION */}
+          <SectionHeading>Location Search</SectionHeading>
+
+          <Input
+            placeholder="Search location (e.g. Manila Mall)"
+            value={data.location_query}
+            onChange={(e) => set("location_query", e.target.value)}
+          />
+
+          {mapUrl && (
+            <iframe
+              src={mapUrl}
+              width="100%"
+              height="250"
+              style={{ border: 0 }}
+              loading="lazy"
+              title="Map"
+            />
+          )}
         </CardContent>
       </Card>
     </div>
   );
-};
-
-export default AdminContactPage;
+}
