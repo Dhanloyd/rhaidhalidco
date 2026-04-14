@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Send, MapPin, Phone, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,80 +8,103 @@ import { toast } from "sonner";
 
 const ContactPage = () => {
   const [form, setForm] = useState({ name: "", email: "", message: "" });
+  const [data, setData] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const { data: row } = await supabase
+        .from("page_content")
+        .select("*")
+        .eq("page", "contact")
+        .maybeSingle();
+
+      setData(row?.content || null);
+    };
+
+    fetchData();
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!form.name || !form.email || !form.message) {
-      toast.error("Please fill in all required fields.");
+      toast.error("Please fill all fields");
       return;
     }
-    toast.success("Message sent! We'll get back to you soon.");
+
+    toast.success("Message sent!");
     setForm({ name: "", email: "", message: "" });
   };
 
   return (
     <div>
-      <section className="gradient-navy section-padding pt-24 md:pt-32">
-        <div className="container mx-auto text-center">
-          <h1 className="font-heading text-4xl md:text-6xl uppercase tracking-wider text-primary-foreground mb-4">Contact Us</h1>
-          <p className="text-primary-foreground/70 max-w-2xl mx-auto text-lg">Get in touch with RaidKhalid & Co.</p>
-        </div>
+      {/* HERO */}
+      <section className="pt-24 text-center">
+        <h1 className="text-4xl font-bold">
+          {data?.hero_title || "Contact Us"}
+        </h1>
+        <p className="text-gray-500 mt-2">
+          {data?.hero_subtitle || "Get in touch with us"}
+        </p>
       </section>
 
-      <section className="section-padding">
-        <div className="container mx-auto max-w-5xl">
-          <div className="grid lg:grid-cols-2 gap-12">
-            {/* Form */}
-            <div>
-              <h2 className="font-heading text-2xl uppercase tracking-wider text-foreground mb-6">Send a Message</h2>
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">Name *</label>
-                  <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Your full name" />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">Email *</label>
-                  <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="your@email.com" />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">Message *</label>
-                  <Textarea rows={5} value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} placeholder="How can we help?" />
-                </div>
-                <Button type="submit" size="lg" className="bg-primary text-primary-foreground hover:bg-primary-light font-heading uppercase tracking-wider gap-2 w-full sm:w-auto">
-                  <Send size={16} /> Send Message
-                </Button>
-              </form>
-            </div>
+      {/* CONTENT */}
+      <section className="grid md:grid-cols-2 gap-10 p-10">
+        {/* FORM */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Input
+            placeholder="Name"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
 
-            {/* Info + Map */}
-            <div>
-              <h2 className="font-heading text-2xl uppercase tracking-wider text-foreground mb-6">Find Us</h2>
-              <div className="space-y-4 mb-8">
-                <div className="flex items-start gap-3">
-                  <MapPin size={18} className="text-primary mt-1 shrink-0" />
-                  <p className="text-muted-foreground text-sm">RK Arena, 123 Basketball Blvd, Manila, Philippines</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Phone size={18} className="text-primary shrink-0" />
-                  <p className="text-muted-foreground text-sm">+63 912 345 6789</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Mail size={18} className="text-primary shrink-0" />
-                  <p className="text-muted-foreground text-sm">hello@raidkhalid.co</p>
-                </div>
-              </div>
-              <div className="rounded-xl overflow-hidden border border-border/50">
-                <iframe
-                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3861.802548850607!2d120.9822!3d14.5547!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMTTCsDMzJzE3LjAiTiAxMjDCsDU4JzU2LjAiRQ!5e0!3m2!1sen!2sph!4v1"
-                  width="100%"
-                  height="300"
-                  style={{ border: 0 }}
-                  allowFullScreen
-                  loading="lazy"
-                  title="RaidKhalid Location"
-                />
-              </div>
-            </div>
+          <Input
+            placeholder="Email"
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+          />
+
+          <Textarea
+            placeholder="Message"
+            value={form.message}
+            onChange={(e) => setForm({ ...form, message: e.target.value })}
+          />
+
+          <Button type="submit" className="w-full">
+            <Send size={16} /> Send
+          </Button>
+        </form>
+
+        {/* INFO */}
+        <div className="space-y-4">
+          <div className="flex gap-2 items-start">
+            <MapPin />
+            <p>{data?.address || "No address set"}</p>
+          </div>
+
+          <div className="flex gap-2 items-center">
+            <Phone />
+            <p>{data?.phone || "No phone set"}</p>
+          </div>
+
+          <div className="flex gap-2 items-center">
+            <Mail />
+            <p>{data?.email || "No email set"}</p>
+          </div>
+
+          {/* MAP */}
+          <div className="rounded-lg overflow-hidden mt-4">
+            {data?.map_embed_url ? (
+              <iframe
+                src={data.map_embed_url}
+                width="100%"
+                height="300"
+                style={{ border: 0 }}
+                loading="lazy"
+              />
+            ) : (
+              <p className="text-sm text-gray-400">No map available</p>
+            )}
           </div>
         </div>
       </section>
