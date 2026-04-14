@@ -82,7 +82,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             show_description: true,
             show_line_items: true,
             line_items: lineItems,
-            payment_method_types: ["gcash", "card", , "grab_pay"],
+            payment_method_types: ["gcash", "card", "grab_pay"],
             description: `Order #${orderId?.slice(0, 8).toUpperCase() || "NEW"}`,
             success_url: `${resolvedSiteUrl}/checkout/success?order_id=${orderId}`,
             cancel_url: `${resolvedSiteUrl}/checkout/cancel?order_id=${orderId}`,
