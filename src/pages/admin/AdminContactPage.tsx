@@ -38,22 +38,30 @@ const SectionTitle = ({ children }: any) => (
 const searchPlace = async (query: string, setData: any) => {
   if (!query) return;
 
-  const res = await fetch(
-    `https://nominatim.openstreetmap.org/search?format=json&q=${query}`
-  );
-  const results = await res.json();
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${query}`
+    );
 
-  if (results.length > 0) {
-    const place = results[0];
+    const results = await res.json();
 
-    setData((d: any) => ({
-      ...d,
-      map_lat: parseFloat(place.lat),
-      map_lng: parseFloat(place.lon),
-      map_address: place.display_name,
-    }));
-  } else {
-    toast.error("Location not found");
+    if (results.length > 0) {
+      const place = results[0];
+
+      const lat = parseFloat(place.lat);
+      const lng = parseFloat(place.lon);
+
+      setData((d: any) => ({
+        ...d,
+        map_lat: lat,
+        map_lng: lng,
+        map_address: place.display_name,
+      }));
+    } else {
+      alert("Location not found");
+    }
+  } catch (err) {
+    console.error(err);
   }
 };
 

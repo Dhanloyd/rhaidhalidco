@@ -1,17 +1,19 @@
 "use client";
 
-import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, useMap } from "react-leaflet";
 import { useState, useEffect } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-// ✅ FIX default marker issue (important for Vite/Vercel)
+// Fix marker icons
 delete (L.Icon.Default.prototype as any)._getIconUrl;
-
 L.Icon.Default.mergeOptions({
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+  iconRetinaUrl:
+    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+  iconUrl:
+    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+  shadowUrl:
+    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
 
 type Props = {
@@ -20,25 +22,30 @@ type Props = {
   setLocation: (lat: number, lng: number) => void;
 };
 
-const LocationPicker = ({ lat, lng, setLocation }: Props) => {
-  const [position, setPosition] = useState<[number, number]>([lat, lng]);
+// 🔥 THIS MOVES THE MAP WHEN SEARCH CHANGES
+const FlyToLocation = ({ lat, lng }: { lat: number; lng: number }) => {
+  const map = useMap();
 
-  // 🔄 Sync when parent updates
+  useEffect(() => {
+    if (lat && lng) {
+      map.flyTo([lat, lng], 15, {
+        duration: 1.5,
+      });
+    }
+  }, [lat, lng]);
+
+  return null;
+};
+
+const LocationPicker = ({ lat, lng, setLocation }: Props) => {
+  const [position, setPosition] = useState<[number, number]>([
+    lat,
+    lng,
+  ]);
+
   useEffect(() => {
     setPosition([lat, lng]);
   }, [lat, lng]);
-
-  // 📍 Click handler
-  const MapClickHandler = () => {
-    useMapEvents({
-      click(e) {
-        const { lat, lng } = e.latlng;
-        setPosition([lat, lng]);
-        setLocation(lat, lng);
-      },
-    });
-    return null;
-  };
 
   return (
     <MapContainer
@@ -49,19 +56,16 @@ const LocationPicker = ({ lat, lng, setLocation }: Props) => {
         width: "100%",
         borderRadius: "12px",
       }}
-      scrollWheelZoom={true}
     >
-      {/* 🗺 Map Tiles */}
       <TileLayer
-        attribution="&copy; OpenStreetMap contributors"
+        attribution="&copy; OpenStreetMap"
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
-      {/* 📍 Marker */}
       <Marker position={position} />
 
-      {/* 👇 Click Listener */}
-      <MapClickHandler />
+      {/* 🔥 MAP ANIMATION CONTROL */}
+      <FlyToLocation lat={lat} lng={lng} />
     </MapContainer>
   );
 };
