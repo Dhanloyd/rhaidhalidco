@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import {
   Printer, Download, FileText, TrendingUp,
-  ShoppingBag, Users, DollarSign, Filter, FileSpreadsheet
+  ShoppingBag, Users, DollarSign, Filter, FileSpreadsheet,
+  PhilippinePesoIcon
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -252,7 +253,7 @@ const AdminReportsPage = () => {
   };
 
   const stats = [
-    { label: "Total Revenue",    value: `₱${totalRevenue.toLocaleString()}`,           icon: <DollarSign size={16} className="text-green-500" /> },
+    { label: "Total Revenue",    value: `₱${totalRevenue.toLocaleString()}`,           icon: <PhilippinePesoIcon size={16} className="text-green-500" /> },
     { label: "Total Orders",     value: totalOrders,                                    icon: <ShoppingBag size={16} className="text-blue-500" /> },
     { label: "Avg. Order",       value: `₱${Math.round(avgOrder).toLocaleString()}`,   icon: <TrendingUp size={16} className="text-purple-500" /> },
     { label: "Pending",          value: pendingCount,                                   icon: <Users size={16} className="text-orange-500" /> },

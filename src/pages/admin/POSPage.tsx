@@ -344,6 +344,11 @@ const change = Math.max(0, cashReceived - total);
         </p>
 
         {/* ── Items: Name on top, amount below ── */}
+         <div className="flex justify-between text-[10px] font-bold border-b border-border pb-1">
+              <span className="flex-1">Item</span>
+              <span className="w-8 text-center">Qty</span>
+              <span className="w-16 text-right">Amount</span>
+            </div>
         <div className="space-y-2">
           {lastReceipt.items.map((item: CartItem, i: number) => (
             <div key={i}>
@@ -359,6 +364,7 @@ const change = Math.max(0, cashReceived - total);
             </div>
           ))}
         </div>
+
 
         {/* ── VATable Breakdown ── */}
 {(() => {

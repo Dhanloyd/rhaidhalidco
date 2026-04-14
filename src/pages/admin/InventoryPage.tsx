@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Package, AlertTriangle, TrendingDown, DollarSign, Search, Plus, Minus, History } from "lucide-react";
+import { Package, AlertTriangle, TrendingDown, DollarSign, Search, Plus, Minus, History, PhilippinePesoIcon } from "lucide-react";
 
 const InventoryPage = () => {
   const [products, setProducts] = useState<any[]>([]);
@@ -79,9 +79,9 @@ const InventoryPage = () => {
     { label: "Total Products", value: totalProducts, icon: Package, color: "text-primary" },
     { label: "Low Stock", value: lowStock, icon: AlertTriangle, color: "text-yellow-500" },
     { label: "Out of Stock", value: outOfStock, icon: TrendingDown, color: "text-destructive" },
-    { label: "Inventory Value", value: `₱${inventoryValue.toLocaleString()}`, icon: DollarSign, color: "text-green-600" },
-    { label: "Total Cost", value: `₱${totalCost.toLocaleString()}`, icon: DollarSign, color: "text-orange-500" },
-    { label: "Potential Profit", value: `₱${potentialProfit.toLocaleString()}`, icon: DollarSign, color: "text-primary" },
+    { label: "Inventory Value", value: `₱${inventoryValue.toLocaleString()}`, icon: PhilippinePesoIcon, color: "text-green-600" },
+    { label: "Total Cost", value: `₱${totalCost.toLocaleString()}`, icon: PhilippinePesoIcon, color: "text-orange-500" },
+    { label: "Potential Profit", value: `₱${potentialProfit.toLocaleString()}`, icon: PhilippinePesoIcon, color: "text-primary" },
   ];
 
   return (
