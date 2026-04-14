@@ -43,10 +43,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setDisplayName(data?.display_name || null);
   };
 
-  useEffect(() => {
-  let initialised = false;
-
- const { data: { subscription } } = supabase.auth.onAuthStateChange(
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(
   async (_event, session) => {
     setSession(session);
     setUser(session?.user ?? null);
@@ -64,43 +61,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(false); // ✅ ALWAYS stop loading
   }
 );
-  supabase.auth.getSession().then(async ({ data: { session } }) => {
-    // ✅ If session is expired, sign out automatically
-    if (session) {
-      const expiresAt = session.expires_at ?? 0;
-      const now = Math.floor(Date.now() / 1000);
-      if (expiresAt < now) {
-        await supabase.auth.signOut({ scope: "local" });
-        Object.keys(localStorage).forEach((k) => {
-          if (k.startsWith("sb-")) localStorage.removeItem(k);
-        });
-        setSession(null);
-        setUser(null);
-        setIsAdmin(false);
-        setDisplayName(null);
-        setLoading(false);
-        initialised = true;
-        return;
-      }
-    }
-
-    setSession(session);
-    setUser(session?.user ?? null);
-
-    if (session?.user) {
-      await Promise.all([
-        checkAdmin(session.user.id),
-        fetchProfile(session.user.id),
-      ]);
-    }
-
-    setLoading(false);
-    initialised = true;
-  });
-
-  return () => subscription.unsubscribe();
-}, []);
-
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error: error as Error | null };
