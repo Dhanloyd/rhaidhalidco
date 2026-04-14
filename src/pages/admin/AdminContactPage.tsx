@@ -3,23 +3,24 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Save, RotateCcw, EyeOff, Eye } from "lucide-react";
 import LocationPicker from "@/components/LocationPicker";
 
 const defaultContent = {
   hero_title: "Contact Us",
-  hero_subtitle: "Get in touch with RaidKhalid & Co.",
+  hero_subtitle: "Get in touch with us",
   address: "Davao City, Philippines",
-  phone: "+63 912 345 6789",
-  email: "hello@raidkhalid.co",
+  phone: "+63 900 000 0000",
+  email: "hello@email.com",
 
-  // ✅ MAP DATA
+  // 🗺 MAP DATA
   map_lat: 7.0731,
   map_lng: 125.6128,
   map_address: "Davao City, Philippines",
 
-  // ✅ SOFT DELETE
+  // 🗑 SOFT DELETE FLAG
   is_deleted: false,
 };
 
@@ -27,11 +28,13 @@ const Label = ({ children }: any) => (
   <label className="text-sm font-medium block mb-1">{children}</label>
 );
 
-const SectionHeading = ({ children }: any) => (
-  <h3 className="text-base uppercase mb-4 border-b pb-2">{children}</h3>
+const SectionTitle = ({ children }: any) => (
+  <h3 className="text-base font-semibold uppercase tracking-wide border-b pb-2 mb-4">
+    {children}
+  </h3>
 );
 
-// 🔎 SEARCH FUNCTION
+// 🔎 SEARCH LOCATION (FREE OpenStreetMap API)
 const searchPlace = async (query: string, setData: any) => {
   if (!query) return;
 
@@ -42,6 +45,7 @@ const searchPlace = async (query: string, setData: any) => {
 
   if (results.length > 0) {
     const place = results[0];
+
     setData((d: any) => ({
       ...d,
       map_lat: parseFloat(place.lat),
@@ -58,7 +62,7 @@ const AdminContactPage = () => {
   const [recordId, setRecordId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // ✅ LOAD ONLY NOT DELETED
+  // 📥 LOAD DATA (only active)
   useEffect(() => {
     supabase
       .from("page_content")
@@ -69,7 +73,7 @@ const AdminContactPage = () => {
       .then(({ data: row }) => {
         if (row) {
           setRecordId(row.id);
-          setData({ ...defaultContent, ...row.content, is_deleted: row.is_deleted });
+          setData({ ...defaultContent, ...row.content });
         }
       });
   }, []);
@@ -77,11 +81,11 @@ const AdminContactPage = () => {
   const set = (key: string, value: any) =>
     setData((d) => ({ ...d, [key]: value }));
 
-  // ✅ SAVE WITH SOFT DELETE FIELD
+  // 💾 SAVE / UPDATE
   const persist = async (payload: typeof defaultContent) => {
     setSaving(true);
 
-    const dataToSave = {
+    const payloadToSave = {
       page: "contact",
       content: payload,
       is_deleted: payload.is_deleted ?? false,
@@ -90,12 +94,12 @@ const AdminContactPage = () => {
     if (recordId) {
       await supabase
         .from("page_content")
-        .update(dataToSave)
+        .update(payloadToSave)
         .eq("id", recordId);
     } else {
       const { data: row } = await supabase
         .from("page_content")
-        .insert(dataToSave)
+        .insert(payloadToSave)
         .select()
         .single();
 
@@ -113,10 +117,10 @@ const AdminContactPage = () => {
   const handleReset = async () => {
     setData(defaultContent);
     await persist(defaultContent);
-    toast.success("Reset complete!");
+    toast.success("Reset done!");
   };
 
-  // 🔥 SOFT DELETE (HIDE)
+  // 🗑 SOFT DELETE (HIDE)
   const handleHide = async () => {
     if (!recordId) return;
 
@@ -125,12 +129,12 @@ const AdminContactPage = () => {
       .update({ is_deleted: true })
       .eq("id", recordId);
 
-    toast.success("Page hidden (soft deleted)");
+    toast.success("Page hidden");
     setRecordId(null);
     setData(defaultContent);
   };
 
-  // 🔥 RESTORE
+  // ♻️ RESTORE
   const handleRestore = async () => {
     await supabase
       .from("page_content")
@@ -144,34 +148,50 @@ const AdminContactPage = () => {
     <div className="space-y-6">
       {/* HEADER */}
       <div className="flex justify-between items-center flex-wrap gap-3">
-        <h1 className="text-2xl font-bold">Contact Page</h1>
+        <h1 className="text-2xl font-bold">Contact Admin Page</h1>
 
         <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" onClick={handleReset} disabled={saving}>
+          <Button variant="outline" onClick={handleReset}>
             <RotateCcw size={14} /> Reset
           </Button>
 
-          <Button onClick={handleSave} disabled={saving}>
-            <Save size={16} /> {saving ? "Saving..." : "Save"}
+          <Button onClick={handleSave}>
+            <Save size={14} /> Save
           </Button>
 
-          {/* 🔥 SOFT DELETE */}
           <Button variant="destructive" onClick={handleHide}>
-            <EyeOff size={16} /> Hide
+            <EyeOff size={14} /> Hide
           </Button>
 
-          {/* 🔥 RESTORE */}
           <Button variant="outline" onClick={handleRestore}>
-            <Eye size={16} /> Restore
+            <Eye size={14} /> Restore
           </Button>
         </div>
       </div>
 
       <Card>
         <CardContent className="space-y-6 pt-6">
-          {/* CONTACT INFO */}
+
+          {/* HERO */}
           <div>
-            <SectionHeading>Contact Info</SectionHeading>
+            <SectionTitle>Hero Section</SectionTitle>
+
+            <Label>Title</Label>
+            <Input
+              value={data.hero_title}
+              onChange={(e) => set("hero_title", e.target.value)}
+            />
+
+            <Label>Subtitle</Label>
+            <Textarea
+              value={data.hero_subtitle}
+              onChange={(e) => set("hero_subtitle", e.target.value)}
+            />
+          </div>
+
+          {/* CONTACT */}
+          <div>
+            <SectionTitle>Contact Info</SectionTitle>
 
             <Label>Address</Label>
             <Input
@@ -194,7 +214,7 @@ const AdminContactPage = () => {
 
           {/* MAP PICKER */}
           <div>
-            <SectionHeading>Map Picker</SectionHeading>
+            <SectionTitle>Map Picker</SectionTitle>
 
             <Label>Search Location</Label>
             <Input
@@ -206,7 +226,7 @@ const AdminContactPage = () => {
               }}
             />
 
-            <Label className="mt-3">Selected Address</Label>
+            <Label>Selected Location</Label>
             <Input value={data.map_address} readOnly />
 
             <div className="mt-4">
@@ -223,6 +243,7 @@ const AdminContactPage = () => {
               />
             </div>
           </div>
+
         </CardContent>
       </Card>
     </div>

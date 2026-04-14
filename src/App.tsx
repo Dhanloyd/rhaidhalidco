@@ -47,6 +47,7 @@ import NotFound from "./pages/NotFound";
 import CheckoutSuccess from "./pages/CheckoutSuccess";   
 import CheckoutCancel from "./pages/CheckoutCancel";
 import TransactionsPage from "./pages/admin/TransactionsPage";
+
 const queryClient = new QueryClient();
 
 const App = () => (
