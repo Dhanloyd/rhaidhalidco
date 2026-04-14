@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode, useRef } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -21,17 +21,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [displayName, setDisplayName] = useState<string | null>(null);
+  const initialised = useRef(false);
 
-  const checkAdmin = async (userId: string): Promise<boolean> => {
+  const checkAdmin = async (userId: string) => {
     const { data } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", userId)
       .eq("role", "admin")
       .maybeSingle();
-    const admin = !!data;
-    setIsAdmin(admin);
-    return admin;
+    setIsAdmin(!!data);
   };
 
   const fetchProfile = async (userId: string) => {
@@ -43,38 +42,54 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setDisplayName(data?.display_name || null);
   };
 
-  const { data: { subscription } } = supabase.auth.onAuthStateChange(
-  async (_event, session) => {
-    setSession(session);
-    setUser(session?.user ?? null);
+  useEffect(() => {
+    // ── 1. Get session once on mount ──
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        await Promise.all([
+          checkAdmin(session.user.id),
+          fetchProfile(session.user.id),
+        ]);
+      }
+      setLoading(false);
+      initialised.current = true;
+    });
 
-    if (session?.user) {
-      await Promise.all([
-        checkAdmin(session.user.id),
-        fetchProfile(session.user.id),
-      ]);
-    } else {
-      setIsAdmin(false);
-      setDisplayName(null);
-    }
+    // ── 2. Listen for auth changes (sign in / sign out only) ──
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (!initialised.current) return; // skip until getSession is done
+        if (event === "SIGNED_OUT") {
+          setSession(null);
+          setUser(null);
+          setIsAdmin(false);
+          setDisplayName(null);
+          return;
+        }
+        if (event === "SIGNED_IN" && session?.user) {
+          setSession(session);
+          setUser(session.user);
+          await Promise.all([
+            checkAdmin(session.user.id),
+            fetchProfile(session.user.id),
+          ]);
+        }
+      }
+    );
 
-    setLoading(false); // ✅ ALWAYS stop loading
-  }
-);
+    return () => subscription.unsubscribe();
+  }, []); // ← empty deps, runs once only
+
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error: error as Error | null };
   };
 
-  const signUp = async (
-    email: string,
-    password: string,
-    name?: string,
-    phone?: string,
-  ) => {
+  const signUp = async (email: string, password: string, name?: string, phone?: string) => {
     const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
+      email, password,
       options: {
         emailRedirectTo: window.location.origin,
         data: { display_name: name || email, phone: phone || "" },
@@ -86,22 +101,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return { error: error as Error | null };
   };
 
- const signOut = async () => {
-  try {
-    await supabase.auth.signOut({ scope: "local" });
-  } catch (_) {
-    // ignore errors — we still want to clear state
-  }
-  // Clear all supabase keys from localStorage
-  Object.keys(localStorage).forEach((key) => {
-    if (key.startsWith("sb-")) localStorage.removeItem(key);
-  });
-  setSession(null);
-  setUser(null);
-  setIsAdmin(false);
-  setDisplayName(null);
-  window.location.href = "/";
-};
+  const signOut = async () => {
+    try {
+      await supabase.auth.signOut({ scope: "local" });
+    } catch (_) {}
+    Object.keys(sessionStorage).forEach((k) => {
+      if (k.startsWith("sb-")) sessionStorage.removeItem(k);
+    });
+    setSession(null);
+    setUser(null);
+    setIsAdmin(false);
+    setDisplayName(null);
+    window.location.href = "/";
+  };
 
   return (
     <AuthContext.Provider value={{ session, user, isAdmin, loading, displayName, signIn, signUp, signOut }}>
