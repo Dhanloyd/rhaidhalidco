@@ -15,7 +15,7 @@ import {
 
 const steps = ["Shipping", "Review", "Payment", "Confirmation"];
 
-const VERCEL_API = "https://rhaidhalidco-buy3.vercel.app/api/create-paymongo-checkout";
+const VERCEL_API = "https://rhaidhalidco.vercel.app/api/create-paymongo-checkout";
 
 const CheckoutPage = () => {
   const { items, totalPrice, clearCart } = useCart();
