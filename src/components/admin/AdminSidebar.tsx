@@ -19,6 +19,7 @@ const navItems = [
   { title: "Flash Sales",     url: "/admin/flash-sales",  icon: Zap },
   { title: "Suppliers",       url: "/admin/suppliers",    icon: Users },
   { title: "Reports",         url: "/admin/reports",      icon: ClipboardList },
+{ title: "Transactions",    url: "/admin/transactions",  icon: CreditCard },
   { title: "GCash Settings",  url: "/admin/payment-settings", icon: Smartphone },
 ];
 
