@@ -42,6 +42,17 @@ export default function OrdersPage() {
     setOrders(data || []);
   };
 
+  const deleteOrder = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this order?")) return;
+    const { error } = await supabase.from("orders").delete().eq("id", id);
+    if (error) {
+      toast.error("Failed to delete order");
+    } else {
+      toast.success("Order deleted");
+      setOrders((prev) => prev.filter((o) => o.id !== id));
+    }
+  };
+
   const filtered = orders.filter(o => {
     return (
       (o.customer_name || "").toLowerCase().includes(search.toLowerCase()) &&
@@ -79,7 +90,6 @@ export default function OrdersPage() {
 
       {/* KPI CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
         {[
           { label: "Orders", value: orders.length, icon: ShoppingCart, color: "text-blue-400" },
           { label: "Revenue", value: `₱${totalRevenue.toLocaleString()}`, icon: TrendingUp, color: "text-emerald-400" },
@@ -99,13 +109,11 @@ export default function OrdersPage() {
             <h2 className="text-2xl font-bold mt-2">{kpi.value}</h2>
           </div>
         ))}
-
       </div>
 
       {/* CHART + FILTER */}
       <div className="grid lg:grid-cols-3 gap-6">
 
-       
         {/* FILTER + TABLE */}
         <div className={`${card} p-5 lg:col-span-3 animate-[fadeUp_0.8s_ease-out]`}>
 
@@ -135,7 +143,6 @@ export default function OrdersPage() {
           {/* TABLE */}
           <div className="rounded-xl overflow-hidden">
             <Table>
-
               <TableHeader>
                 <TableRow className="border-white/10">
                   <TableHead>ID</TableHead>
@@ -148,72 +155,130 @@ export default function OrdersPage() {
               </TableHeader>
 
               <TableBody>
-                {filtered.map((o, i) => (
-                  <TableRow
-                    key={o.id}
-                    className="border-white/5 transition-all duration-300
-                    hover:bg-white/5 hover:scale-[1.01]
-                    animate-[fadeUp_0.4s_ease-out]"
-                    style={{ animationDelay: `${i * 0.03}s` }}
-                  >
-                    <TableCell className="font-mono text-xs">
-                      {o.id.slice(0, 8)}
+                {filtered.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-12 text-slate-500">
+                      No orders found
                     </TableCell>
-
-                    <TableCell>{o.customer_name}</TableCell>
-
-                    <TableCell className="font-bold">
-                      ₱{Number(o.total).toLocaleString()}
-                    </TableCell>
-
-                    <TableCell>
-                      <span className="px-2 py-1 rounded-full text-xs bg-white/10">
-                        {o.status}
-                      </span>
-                    </TableCell>
-
-                    <TableCell className="text-slate-400 text-sm">
-                      {new Date(o.created_at).toLocaleDateString()}
-                    </TableCell>
-
-                    <TableCell className="flex gap-2">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="hover:scale-110 transition"
-                        onClick={() => setViewOrder(o)}
-                      >
-                        <Eye size={14} />
-                      </Button>
-
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="hover:scale-110 hover:text-red-400 transition"
-                      >
-                        <Trash2 size={14} />
-                      </Button>
-                    </TableCell>
-
                   </TableRow>
-                ))}
-              </TableBody>
+                ) : (
+                  filtered.map((o, i) => (
+                    <TableRow
+                      key={o.id}
+                      className="border-white/5 transition-all duration-300
+                      hover:bg-white/5 hover:scale-[1.01]
+                      animate-[fadeUp_0.4s_ease-out]"
+                      style={{ animationDelay: `${i * 0.03}s` }}
+                    >
+                      <TableCell className="font-mono text-xs">
+                        {o.id.slice(0, 8)}
+                      </TableCell>
 
+                      <TableCell>{o.customer_name}</TableCell>
+
+                      <TableCell className="font-bold">
+                        ₱{Number(o.total).toLocaleString()}
+                      </TableCell>
+
+                      <TableCell>
+                        <span className="px-2 py-1 rounded-full text-xs bg-white/10">
+                          {o.status}
+                        </span>
+                      </TableCell>
+
+                      <TableCell className="text-slate-400 text-sm">
+                        {new Date(o.created_at).toLocaleDateString()}
+                      </TableCell>
+
+                      <TableCell className="flex gap-2">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="hover:scale-110 transition"
+                          onClick={() => setViewOrder(o)}
+                        >
+                          <Eye size={14} />
+                        </Button>
+
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="hover:scale-110 hover:text-red-400 transition"
+                          onClick={() => deleteOrder(o.id)}
+                        >
+                          <Trash2 size={14} />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
             </Table>
           </div>
-
         </div>
       </div>
 
       {/* MODAL */}
       <Dialog open={!!viewOrder} onOpenChange={() => setViewOrder(null)}>
-        <DialogContent className="bg-[#111827] text-white border-white/10">
+        <DialogContent className="bg-[#111827] text-white border-white/10 max-w-lg">
           <DialogTitle>Order Details</DialogTitle>
           {viewOrder && (
-            <div className="text-sm space-y-2">
-              <p>Customer: {viewOrder.customer_name}</p>
-              <p>Total: ₱{viewOrder.total}</p>
-              <p>Status: {viewOrder.status}</p>
+            <div className="text-sm space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <p className="text-xs text-slate-400">Order ID</p>
+                  <p className="font-mono text-indigo-400">#{viewOrder.id?.slice(0, 8).toUpperCase()}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Date</p>
+                  <p>{new Date(viewOrder.created_at).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Customer</p>
+                  <p>{viewOrder.customer_name}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Email</p>
+                  <p>{viewOrder.customer_email}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Total</p>
+                  <p className="font-bold text-emerald-400">₱{Number(viewOrder.total).toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Status</p>
+                  <span className="px-2 py-0.5 rounded-full text-xs bg-white/10">{viewOrder.status}</span>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Payment Method</p>
+                  <p className="capitalize">{viewOrder.payment_method || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Payment Status</p>
+                  <p className="capitalize">{viewOrder.payment_status || "—"}</p>
+                </div>
+              </div>
+
+              {viewOrder.shipping_address && (
+                <div>
+                  <p className="text-xs text-slate-400 mb-1">Shipping Address</p>
+                  <p className="text-slate-300">{viewOrder.shipping_address}</p>
+                </div>
+              )}
+
+              {Array.isArray(viewOrder.items) && viewOrder.items.length > 0 && (
+                <div>
+                  <p className="text-xs text-slate-400 mb-2">Items</p>
+                  <div className="space-y-1.5">
+                    {viewOrder.items.map((item: any, i: number) => (
+                      <div key={i} className="flex justify-between text-xs p-2 rounded-lg bg-white/5">
+                        <span className="text-slate-300">{item.name}</span>
+                        <span className="text-slate-400">x{item.quantity} · ₱{Number(item.price).toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>
@@ -225,18 +290,15 @@ export default function OrdersPage() {
           from { opacity: 0 }
           to { opacity: 1 }
         }
-
         @keyframes fadeUp {
           from { opacity: 0; transform: translateY(20px) }
           to { opacity: 1; transform: translateY(0) }
         }
-
         @keyframes slideDown {
           from { opacity: 0; transform: translateY(-20px) }
           to { opacity: 1; transform: translateY(0) }
         }
       `}</style>
-
     </div>
   );
 }
