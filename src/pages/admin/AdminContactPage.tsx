@@ -9,162 +9,107 @@ import { Save, RotateCcw } from "lucide-react";
 
 const defaultContent = {
   hero_title: "Contact Us",
-  hero_subtitle: "Get in touch with us",
-  address: "RK Arena, Manila",
+  hero_subtitle: "Get in touch with RaidKhalid & Co.",
+  address: "RK Arena, 123 Basketball Blvd, Manila, Philippines",
   phone: "+63 912 345 6789",
-  email: "hello@email.com",
-  location_query: "RK Arena Manila Philippines",
+  email: "hello@raidkhalid.co",
+  map_embed_url: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3861.802548850607!2d120.9822!3d14.5547!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMTTCsDMzJzE3LjAiTiAxMjDCsDU4JzU2LjAiRQ!5e0!3m2!1sen!2sph!4v1",
 };
 
-const Label = ({ children }: any) => (
-  <label className="text-sm font-medium block mb-1">{children}</label>
+const Label = ({ children }: { children: React.ReactNode }) => (
+  <label className="text-sm font-medium text-foreground block mb-1">{children}</label>
 );
 
-const SectionHeading = ({ children }: any) => (
-  <h3 className="text-base font-bold uppercase mb-3 border-b pb-2">
+const SectionHeading = ({ children }: { children: React.ReactNode }) => (
+  <h3 className="font-heading text-base uppercase tracking-wider text-foreground mb-4 pb-2 border-b border-border/50">
     {children}
   </h3>
 );
 
-export default function AdminContactPage() {
+const AdminContactPage = () => {
   const [data, setData] = useState(defaultContent);
   const [recordId, setRecordId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // LOAD
   useEffect(() => {
     supabase
       .from("page_content")
       .select("*")
       .eq("page", "contact")
       .maybeSingle()
-      .then(({ data }) => {
-        if (data) {
-          setRecordId(data.id);
-          setData({ ...defaultContent, ...data.content });
-        }
+      .then(({ data: row }) => {
+        if (row) { setRecordId(row.id); setData({ ...defaultContent, ...row.content }); }
       });
   }, []);
 
-  const set = (key: string, value: string) =>
-    setData((prev) => ({ ...prev, [key]: value }));
+  const set = (key: string, value: string) => setData((d) => ({ ...d, [key]: value }));
 
-  // SAVE
-  const save = async (payload: any) => {
+  const persist = async (payload: typeof defaultContent) => {
     setSaving(true);
-
-    const body = {
-      page: "contact",
-      content: payload,
-    };
-
     if (recordId) {
-      await supabase.from("page_content").update(body).eq("id", recordId);
+      await supabase.from("page_content").update({ content: payload }).eq("id", recordId);
     } else {
-      const { data } = await supabase
-        .from("page_content")
-        .insert(body)
-        .select()
-        .single();
-
-      if (data) setRecordId(data.id);
+      const { data: row } = await supabase.from("page_content").insert({ page: "contact", content: payload }).select().single();
+      if (row) setRecordId(row.id);
     }
-
     setSaving(false);
-    toast.success("Saved successfully!");
   };
 
-  const reset = async () => {
-    setData(defaultContent);
-    await save(defaultContent);
-    toast.success("Reset done!");
-  };
-
-  const mapUrl = data.location_query
-    ? `https://www.google.com/maps?q=${encodeURIComponent(
-        data.location_query
-      )}&output=embed`
-    : "";
+  const handleSave = async () => { await persist(data); toast.success("Contact page saved!"); };
+  const handleReset = async () => { setData(defaultContent); await persist(defaultContent); toast.success("Reset to defaults."); };
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between">
-        <h1 className="text-2xl font-bold">Contact Page Admin</h1>
-
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <h1 className="font-heading text-2xl uppercase tracking-wider text-foreground">Contact Page</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Edit the public Contact page content</p>
+        </div>
         <div className="flex gap-2">
-          <Button onClick={reset} variant="outline">
+          <Button variant="outline" onClick={handleReset} disabled={saving} className="gap-2 font-heading uppercase tracking-wider">
             <RotateCcw size={14} /> Reset
           </Button>
-
-          <Button onClick={() => save(data)} disabled={saving}>
-            <Save size={14} /> {saving ? "Saving..." : "Save"}
+          <Button onClick={handleSave} disabled={saving} className="gap-2 bg-primary text-primary-foreground font-heading uppercase tracking-wider">
+            <Save size={16} /> {saving ? "Saving..." : "Save Changes"}
           </Button>
         </div>
       </div>
 
-      <Card>
-        <CardContent className="space-y-6 pt-6">
-          {/* HERO */}
-          <SectionHeading>Hero</SectionHeading>
+      <Card><CardContent className="pt-6 space-y-8">
+        {/* Hero */}
+        <div className="space-y-4">
+          <SectionHeading>Hero Section</SectionHeading>
+          <div><Label>Page Title</Label><Input value={data.hero_title} onChange={(e) => set("hero_title", e.target.value)} /></div>
+          <div><Label>Subtitle</Label><Textarea rows={2} value={data.hero_subtitle} onChange={(e) => set("hero_subtitle", e.target.value)} /></div>
+        </div>
 
+        {/* Contact Info */}
+        <div className="space-y-4">
+          <SectionHeading>Contact Information</SectionHeading>
+          <div><Label>Address</Label><Input value={data.address} onChange={(e) => set("address", e.target.value)} /></div>
+          <div><Label>Phone</Label><Input value={data.phone} onChange={(e) => set("phone", e.target.value)} /></div>
+          <div><Label>Email</Label><Input type="email" value={data.email} onChange={(e) => set("email", e.target.value)} /></div>
+        </div>
+
+        {/* Map */}
+        <div className="space-y-3">
+          <SectionHeading>Google Maps Embed</SectionHeading>
           <div>
-            <Label>Title</Label>
-            <Input
-              value={data.hero_title}
-              onChange={(e) => set("hero_title", e.target.value)}
-            />
+            <Label>Embed URL</Label>
+            <Textarea rows={3} value={data.map_embed_url} onChange={(e) => set("map_embed_url", e.target.value)} placeholder='Paste the src="..." URL from Google Maps embed code' />
+            <p className="text-xs text-muted-foreground mt-1.5">
+              Google Maps → Share → Embed a map → copy only the <code>src="..."</code> value.
+            </p>
           </div>
-
-          <div>
-            <Label>Subtitle</Label>
-            <Textarea
-              value={data.hero_subtitle}
-              onChange={(e) => set("hero_subtitle", e.target.value)}
-            />
-          </div>
-
-          {/* CONTACT */}
-          <SectionHeading>Contact Info</SectionHeading>
-
-          <Input
-            placeholder="Address"
-            value={data.address}
-            onChange={(e) => set("address", e.target.value)}
-          />
-
-          <Input
-            placeholder="Phone"
-            value={data.phone}
-            onChange={(e) => set("phone", e.target.value)}
-          />
-
-          <Input
-            placeholder="Email"
-            value={data.email}
-            onChange={(e) => set("email", e.target.value)}
-          />
-
-          {/* LOCATION */}
-          <SectionHeading>Location Search</SectionHeading>
-
-          <Input
-            placeholder="Search location (e.g. Manila Mall)"
-            value={data.location_query}
-            onChange={(e) => set("location_query", e.target.value)}
-          />
-
-          {mapUrl && (
-            <iframe
-              src={mapUrl}
-              width="100%"
-              height="250"
-              style={{ border: 0 }}
-              loading="lazy"
-              title="Map"
-            />
+          {data.map_embed_url && (
+            <div className="rounded-xl overflow-hidden border border-border/50">
+              <iframe src={data.map_embed_url} width="100%" height="240" style={{ border: 0 }} loading="lazy" title="Map preview" />
+            </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </CardContent></Card>
     </div>
   );
-}
+};
+
+export default AdminContactPage;
