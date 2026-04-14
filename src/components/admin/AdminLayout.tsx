@@ -15,7 +15,7 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "radial-gradient(ellipse at 20% 20%, #0f1b3d 0%, #080c1a 60%, #0a0d20 100%)",
+        
       }}>
         <div style={{
           width: 32, height: 32,
