@@ -44,52 +44,65 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    // Track whether the initial getSession call already set loading=false
-    // so the onAuthStateChange listener doesn't double-fire on mount.
-    let initialised = false;
+  let initialised = false;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-
-        if (session?.user) {
-          // Wait for BOTH async calls before clearing the loading flag
-          await Promise.all([
-            checkAdmin(session.user.id),
-            fetchProfile(session.user.id),
-          ]);
-        } else {
-          setIsAdmin(false);
-          setDisplayName(null);
-        }
-
-        // Only set loading=false from the listener after initialisation
-        if (initialised) {
-          setLoading(false);
-        }
-      }
-    );
-
-    // Initial session check — this is the source of truth on first load
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    async (_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
 
       if (session?.user) {
-        // Await both so loading stays true until we know isAdmin
         await Promise.all([
           checkAdmin(session.user.id),
           fetchProfile(session.user.id),
         ]);
+      } else {
+        setIsAdmin(false);
+        setDisplayName(null);
       }
 
-      setLoading(false);
-      initialised = true;
-    });
+      if (initialised) {
+        setLoading(false);
+      }
+    }
+  );
 
-    return () => subscription.unsubscribe();
-  }, []);
+  supabase.auth.getSession().then(async ({ data: { session } }) => {
+    // ✅ If session is expired, sign out automatically
+    if (session) {
+      const expiresAt = session.expires_at ?? 0;
+      const now = Math.floor(Date.now() / 1000);
+      if (expiresAt < now) {
+        await supabase.auth.signOut({ scope: "local" });
+        Object.keys(localStorage).forEach((k) => {
+          if (k.startsWith("sb-")) localStorage.removeItem(k);
+        });
+        setSession(null);
+        setUser(null);
+        setIsAdmin(false);
+        setDisplayName(null);
+        setLoading(false);
+        initialised = true;
+        return;
+      }
+    }
+
+    setSession(session);
+    setUser(session?.user ?? null);
+
+    if (session?.user) {
+      await Promise.all([
+        checkAdmin(session.user.id),
+        fetchProfile(session.user.id),
+      ]);
+    }
+
+    setLoading(false);
+    initialised = true;
+  });
+
+  return () => subscription.unsubscribe();
+}, []);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
