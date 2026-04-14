@@ -1,4 +1,4 @@
-import { LayoutDashboard, ShoppingCart, Package, CreditCard, LogOut, Home, Newspaper, Star, Users, UserCheck, Calendar, FileText, Share2, BarChart3, Tag, Zap, Truck, Phone, Info, ClipboardList, Smartphone } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, Package, CreditCard, LogOut, Home, Newspaper, Star, Users, UserCheck, Calendar, FileText, Share2, BarChart3, Tag, Zap, Truck, Phone, Info, ClipboardList, Smartphone, Receipt } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -21,6 +21,7 @@ const navItems = [
   { title: "Reports",         url: "/admin/reports",      icon: ClipboardList },
 { title: "Transactions",    url: "/admin/transactions",  icon: CreditCard },
   { title: "GCash Settings",  url: "/admin/payment-settings", icon: Smartphone },
+  { title: "Receipt Settings", url: "/admin/receipt-settings", icon: Receipt },
 ];
 
 const cmsItems = [
