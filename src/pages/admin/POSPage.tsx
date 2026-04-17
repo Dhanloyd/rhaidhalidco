@@ -23,8 +23,8 @@ interface Product {
   available_waist_sizes?: string[];
   available_lengths?: string[];
   brand?: string;
-  weight?: number;      // grams
-  dimensions?: string;  // e.g. "30x28x2cm"
+  weight?: number;
+  dimensions?: string;
 }
 
 interface CartItem {
@@ -45,16 +45,13 @@ interface ReceiptSettings {
   logo_url: string | null;
 }
 
-// ── Standard pants waist sizes (Zalora-style) ─────────────────────────────────
 const PANTS_WAIST = ["28", "29", "30", "31", "32", "33", "34", "36", "38", "40", "42"];
 const PANTS_LENGTH = ["28", "29", "30", "31", "32", "33", "34"];
-// Pants categories that use waist × length
 const PANTS_CATEGORIES = ["pants", "jeans", "trousers", "shorts", "bottoms", "denim"];
 
 const isPantsCategory = (category: string) =>
   PANTS_CATEGORIES.some(c => category.toLowerCase().includes(c));
 
-// ── Variant Picker Dialog (Zalora-style with pants measurements) ──────────────
 const VariantPickerDialog = ({
   product, open, onClose, onConfirm,
 }: {
@@ -63,26 +60,26 @@ const VariantPickerDialog = ({
   onClose: () => void;
   onConfirm: (size?: string, color?: string, waist?: string, length?: string) => void;
 }) => {
-  const [size, setSize]       = useState("");
-  const [color, setColor]     = useState("");
-  const [waist, setWaist]     = useState("");
-  const [length, setLength]   = useState("");
+  const [size, setSize]     = useState("");
+  const [color, setColor]   = useState("");
+  const [waist, setWaist]   = useState("");
+  const [length, setLength] = useState("");
 
   useEffect(() => { if (open) { setSize(""); setColor(""); setWaist(""); setLength(""); } }, [open]);
 
   if (!product) return null;
 
-  const isBottoms      = isPantsCategory(product.category);
-  const needsSize      = !isBottoms && (product.available_sizes?.length ?? 0) > 0;
-  const needsColor     = (product.available_colors?.length ?? 0) > 0;
-  const waistOptions   = product.available_waist_sizes?.length ? product.available_waist_sizes : PANTS_WAIST;
-  const lengthOptions  = product.available_lengths?.length ? product.available_lengths : PANTS_LENGTH;
+  const isBottoms     = isPantsCategory(product.category);
+  const needsSize     = !isBottoms && (product.available_sizes?.length ?? 0) > 0;
+  const needsColor    = (product.available_colors?.length ?? 0) > 0;
+  const waistOptions  = product.available_waist_sizes?.length ? product.available_waist_sizes : PANTS_WAIST;
+  const lengthOptions = product.available_lengths?.length ? product.available_lengths : PANTS_LENGTH;
 
   const handleConfirm = () => {
-    if (needsSize && !size)       { toast.error("Please select a size");   return; }
-    if (needsColor && !color)     { toast.error("Please select a color");  return; }
-    if (isBottoms && !waist)      { toast.error("Please select a waist");  return; }
-    if (isBottoms && !length)     { toast.error("Please select a length"); return; }
+    if (needsSize && !size)   { toast.error("Please select a size");   return; }
+    if (needsColor && !color) { toast.error("Please select a color");  return; }
+    if (isBottoms && !waist)  { toast.error("Please select a waist");  return; }
+    if (isBottoms && !length) { toast.error("Please select a length"); return; }
     onConfirm(size || undefined, color || undefined, waist || undefined, length || undefined);
     onClose();
   };
@@ -94,7 +91,6 @@ const VariantPickerDialog = ({
           <DialogTitle className="font-heading uppercase tracking-wider text-sm">Select Options</DialogTitle>
         </DialogHeader>
         <div className="space-y-5 mt-2">
-          {/* Product preview */}
           <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-xl">
             {product.image_url && (
               <img src={product.image_url} alt={product.name} className="w-14 h-18 object-cover rounded-lg" style={{ height: "72px" }} />
@@ -112,7 +108,6 @@ const VariantPickerDialog = ({
             </div>
           </div>
 
-          {/* ── PANTS: Waist × Length (Zalora style) ── */}
           {isBottoms && (
             <>
               <div>
@@ -161,7 +156,6 @@ const VariantPickerDialog = ({
                 </div>
               </div>
 
-              {/* Waist × Length summary badge */}
               {waist && length && (
                 <div style={{
                   padding: "10px 14px", borderRadius: "10px",
@@ -182,7 +176,6 @@ const VariantPickerDialog = ({
             </>
           )}
 
-          {/* ── Regular sizes (shirts, etc.) ── */}
           {needsSize && (
             <div>
               <p className="text-sm font-semibold text-foreground mb-2">
@@ -201,7 +194,6 @@ const VariantPickerDialog = ({
             </div>
           )}
 
-          {/* Color picker */}
           {needsColor && (
             <div>
               <p className="text-sm font-semibold text-foreground mb-2">
@@ -220,7 +212,6 @@ const VariantPickerDialog = ({
             </div>
           )}
 
-          {/* Product specs */}
           {(product.weight || product.dimensions) && (
             <div style={{
               padding: "10px 14px", borderRadius: "8px",
@@ -262,9 +253,6 @@ const VariantPickerDialog = ({
   );
 };
 
-// ═══════════════════════════════════════════════
-// POS Page
-// ═══════════════════════════════════════════════
 const POSPage = () => {
   const { user } = useAuth();
   const [products, setProducts]             = useState<Product[]>([]);
@@ -303,7 +291,7 @@ const POSPage = () => {
   };
 
   const openVariantPicker = (product: Product) => {
-    const isBottoms  = isPantsCategory(product.category);
+    const isBottoms = isPantsCategory(product.category);
     const needsVariant = isBottoms ||
       (product.available_sizes?.length ?? 0) > 0 ||
       (product.available_colors?.length ?? 0) > 0;
@@ -467,7 +455,6 @@ const POSPage = () => {
 
   const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  // Build size display label for cart item
   const getSizeLabel = (item: CartItem): string => {
     if (item.selectedWaist && item.selectedLength) return `W${item.selectedWaist}/L${item.selectedLength}`;
     if (item.selectedSize) return item.selectedSize;
@@ -480,9 +467,8 @@ const POSPage = () => {
 
       <div className="grid lg:grid-cols-3 gap-4">
 
-        {/* ── Products Panel ── */}
+        {/* Products Panel */}
         <div className="lg:col-span-2 space-y-3">
-
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Barcode size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -541,7 +527,6 @@ const POSPage = () => {
                           <span className="text-xs font-bold text-muted-foreground">Out of Stock</span>
                         </div>
                       )}
-                      {/* Zalora-style size indicator badges */}
                       <div className="absolute bottom-1.5 right-1.5 flex gap-1 flex-wrap justify-end">
                         {isBottoms && (
                           <span style={{
@@ -578,7 +563,7 @@ const POSPage = () => {
           )}
         </div>
 
-        {/* ── Cart Panel ── */}
+        {/* Cart Panel */}
         <Card className="h-fit sticky top-4 border-border/60">
           <CardHeader className="pb-2 border-b border-border/60">
             <CardTitle className="font-heading text-sm uppercase tracking-wider flex items-center justify-between">
@@ -594,7 +579,6 @@ const POSPage = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 pt-3">
-
             {cart.length === 0 ? (
               <div className="text-center py-8">
                 <ShoppingCart size={28} className="mx-auto text-muted-foreground/40 mb-2" />
@@ -614,8 +598,6 @@ const POSPage = () => {
                       )}
                       <div className="flex-1 min-w-0">
                         <p className="text-[11px] font-medium text-foreground leading-snug line-clamp-1">{item.product.name}</p>
-
-                        {/* Size / measurement variants — Zalora style */}
                         <div className="flex flex-wrap gap-1 mt-0.5">
                           {isBottomItem ? (
                             <span style={{
@@ -644,12 +626,10 @@ const POSPage = () => {
                             </span>
                           )}
                         </div>
-
                         <p className="text-[10px] text-muted-foreground mt-0.5">
                           ₱{Number(item.product.price).toLocaleString()} × {item.quantity}
                           = <span className="text-foreground font-medium">₱{(item.product.price * item.quantity).toLocaleString()}</span>
                         </p>
-
                         <div className="flex items-center justify-between mt-1.5">
                           <div className="flex items-center border border-border rounded-lg overflow-hidden">
                             <button onClick={() => updateQty(index, -1)}
@@ -674,24 +654,20 @@ const POSPage = () => {
               </div>
             )}
 
-            {/* Totals + checkout */}
             <div className="border-t border-border pt-3 space-y-2.5">
               <div className="flex justify-between text-sm text-muted-foreground">
                 <span>Subtotal</span><span>₱{fmt(subtotal)}</span>
               </div>
-
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground shrink-0">Discount:</span>
                 <Input type="number" className="h-7 text-xs" value={discountAmount || ""}
                   onChange={(e) => setDiscountAmount(parseFloat(e.target.value) || 0)} placeholder="0" />
               </div>
-
               {discountAmount > 0 && (
                 <div className="flex justify-between text-sm text-green-600">
                   <span>Discount</span><span>-₱{fmt(discountAmount)}</span>
                 </div>
               )}
-
               {receiptSettings.vat_rate > 0 && cart.length > 0 && (
                 <div className="rounded-lg bg-muted/50 p-2 space-y-1">
                   <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">VAT Breakdown</p>
@@ -703,15 +679,12 @@ const POSPage = () => {
                   </div>
                 </div>
               )}
-
               <div className="flex justify-between font-heading text-lg border-t border-border pt-2">
                 <span className="text-foreground">Total</span>
                 <span className="text-primary">₱{fmt(total)}</span>
               </div>
-
               <Input placeholder="Customer name" className="h-8 text-sm" value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)} />
-
               <Select value={paymentMethod} onValueChange={setPaymentMethod}>
                 <SelectTrigger className="h-8 text-xs">
                   <CreditCard size={12} className="mr-1" /><SelectValue />
@@ -722,7 +695,6 @@ const POSPage = () => {
                   <SelectItem value="gcash">GCash</SelectItem>
                 </SelectContent>
               </Select>
-
               {paymentMethod === "cash" && (
                 <div className="space-y-1">
                   <Input type="number" placeholder="Cash received" className="h-8 text-sm"
@@ -735,7 +707,6 @@ const POSPage = () => {
                   )}
                 </div>
               )}
-
               <Button onClick={handleCheckout} disabled={cart.length === 0 || processing}
                 className="w-full bg-primary text-primary-foreground font-heading uppercase tracking-wider h-11">
                 {processing ? "Processing..." : `Checkout · ₱${fmt(total)}`}
@@ -745,7 +716,7 @@ const POSPage = () => {
         </Card>
       </div>
 
-      {/* ── Variant Picker ── */}
+      {/* Variant Picker */}
       <VariantPickerDialog
         product={variantProduct}
         open={variantOpen}
@@ -755,7 +726,7 @@ const POSPage = () => {
         }}
       />
 
-      {/* ── Zalora-style Receipt Dialog ── */}
+      {/* Receipt Dialog */}
       <Dialog open={receiptDialog} onOpenChange={setReceiptDialog}>
         <DialogContent className="max-w-md max-h-[92vh] overflow-y-auto p-0">
           <DialogHeader className="sr-only">
@@ -780,15 +751,12 @@ const POSPage = () => {
               </div>
 
               {/* Receipt meta */}
-              <div style={{
-                display: "grid", gridTemplateColumns: "1fr 1fr",
-                borderBottom: "1px solid rgba(10,13,20,.08)",
-              }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", borderBottom: "1px solid rgba(10,13,20,.08)" }}>
                 {[
                   { label: "Receipt #", value: lastReceipt.receipt_number },
-                  { label: "Date", value: lastReceipt.date },
-                  { label: "Customer", value: lastReceipt.customer_name },
-                  { label: "Payment", value: lastReceipt.payment_method.toUpperCase() },
+                  { label: "Date",      value: lastReceipt.date },
+                  { label: "Customer",  value: lastReceipt.customer_name },
+                  { label: "Payment",   value: lastReceipt.payment_method.toUpperCase() },
                 ].map((m, i) => (
                   <div key={i} style={{
                     padding: "10px 16px",
@@ -808,8 +776,6 @@ const POSPage = () => {
                 <p style={{ fontSize: "9px", fontWeight: 800, letterSpacing: ".16em", textTransform: "uppercase", color: "rgba(10,13,20,.35)", marginBottom: "8px" }}>
                   Items
                 </p>
-
-                {/* Column headers */}
                 <div style={{
                   display: "grid", gridTemplateColumns: "1fr 52px 52px 64px",
                   padding: "6px 8px", background: "rgba(10,13,20,.04)", borderRadius: "5px", marginBottom: "4px",
@@ -819,88 +785,70 @@ const POSPage = () => {
                   ))}
                 </div>
 
-                // ══════════════════════════════════════════════════════════
-// PATCH for POSPage.tsx — Receipt Dialog items section
-// Replace the items map inside the receipt Dialog with this.
-// The getSizeLabel helper is already defined at the top of
-// the component, so no changes needed there.
-//
-// Key fix: selectedWaist / selectedLength are stored on
-// CartItem directly, so lastReceipt.items (which is [...cart])
-// carries them correctly. The size column now always renders.
-// ══════════════════════════════════════════════════════════
+                {lastReceipt.items.map((item: CartItem, i: number) => {
+                  const sizeLabel    = getSizeLabel(item);
+                  const isBottomItem = !!(item.selectedWaist && item.selectedLength);
 
-// ─── Inside the <Dialog> receipt, replace the items.map block: ───
+                  return (
+                    <div key={i} style={{
+                      display: "grid", gridTemplateColumns: "1fr 52px 52px 64px",
+                      padding: "8px 8px", alignItems: "center",
+                      borderBottom: i < lastReceipt.items.length - 1 ? "1px solid rgba(10,13,20,.05)" : "none",
+                    }}>
+                      <div>
+                        <p style={{ fontSize: "11px", fontWeight: 600, color: "#0a0d14", lineHeight: 1.3 }}>
+                          {item.product.name}
+                        </p>
+                        {item.selectedColor && (
+                          <p style={{ fontSize: "9px", color: "rgba(10,13,20,.4)", marginTop: "1px" }}>
+                            {item.selectedColor}
+                          </p>
+                        )}
+                        <p style={{ fontSize: "10px", color: "rgba(10,13,20,.4)", marginTop: "1px" }}>
+                          @ ₱{fmt(item.product.price)}
+                        </p>
+                        {item.product.weight && (
+                          <p style={{ fontSize: "9px", color: "rgba(10,13,20,.3)", marginTop: "1px" }}>
+                            {item.product.weight}g
+                            {item.product.dimensions ? ` · ${item.product.dimensions}` : ""}
+                          </p>
+                        )}
+                      </div>
 
-{lastReceipt.items.map((item: CartItem, i: number) => {
-  const sizeLabel   = getSizeLabel(item);           // W28/L30 OR S/M/L
-  const isBottomItem = !!(item.selectedWaist && item.selectedLength);
+                      <div style={{ textAlign: "center" }}>
+                        {isBottomItem ? (
+                          <span style={{
+                            display: "inline-block", fontSize: "9px", fontWeight: 800,
+                            padding: "2px 4px", borderRadius: "3px",
+                            background: "rgba(26,86,219,.08)", color: "#1a56db",
+                            fontFamily: "monospace", lineHeight: 1.4,
+                          }}>
+                            W{item.selectedWaist}<br />L{item.selectedLength}
+                          </span>
+                        ) : sizeLabel ? (
+                          <span style={{
+                            display: "inline-block", fontSize: "10px", fontWeight: 700,
+                            padding: "2px 6px", borderRadius: "3px",
+                            background: "rgba(10,13,20,.06)", color: "#0a0d14",
+                            textTransform: "uppercase",
+                          }}>
+                            {sizeLabel}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: "10px", color: "rgba(10,13,20,.3)" }}>—</span>
+                        )}
+                      </div>
 
-  return (
-    <div key={i} style={{
-      display: "grid", gridTemplateColumns: "1fr 52px 52px 64px",
-      padding: "8px 8px", alignItems: "center",
-      borderBottom: i < lastReceipt.items.length - 1 ? "1px solid rgba(10,13,20,.05)" : "none",
-    }}>
-      {/* Product name + color + unit price */}
-      <div>
-        <p style={{ fontSize: "11px", fontWeight: 600, color: "#0a0d14", lineHeight: 1.3 }}>
-          {item.product.name}
-        </p>
-        {item.selectedColor && (
-          <p style={{ fontSize: "9px", color: "rgba(10,13,20,.4)", marginTop: "1px" }}>
-            {item.selectedColor}
-          </p>
-        )}
-        <p style={{ fontSize: "10px", color: "rgba(10,13,20,.4)", marginTop: "1px" }}>
-          @ ₱{fmt(item.product.price)}
-        </p>
-        {item.product.weight && (
-          <p style={{ fontSize: "9px", color: "rgba(10,13,20,.3)", marginTop: "1px" }}>
-            {item.product.weight}g
-            {item.product.dimensions ? ` · ${item.product.dimensions}` : ""}
-          </p>
-        )}
-      </div>
+                      <div style={{ textAlign: "center", fontSize: "12px", fontWeight: 700, color: "#0a0d14" }}>
+                        ×{item.quantity}
+                      </div>
 
-      {/* Size / Waist×Length — always rendered */}
-      <div style={{ textAlign: "center" }}>
-        {isBottomItem ? (
-          <span style={{
-            display: "inline-block", fontSize: "9px", fontWeight: 800,
-            padding: "2px 4px", borderRadius: "3px",
-            background: "rgba(26,86,219,.08)", color: "#1a56db",
-            fontFamily: "monospace", lineHeight: 1.4,
-          }}>
-            W{item.selectedWaist}<br />L{item.selectedLength}
-          </span>
-        ) : sizeLabel ? (
-          <span style={{
-            display: "inline-block", fontSize: "10px", fontWeight: 700,
-            padding: "2px 6px", borderRadius: "3px",
-            background: "rgba(10,13,20,.06)", color: "#0a0d14",
-            textTransform: "uppercase",
-          }}>
-            {sizeLabel}
-          </span>
-        ) : (
-          <span style={{ fontSize: "10px", color: "rgba(10,13,20,.3)" }}>—</span>
-        )}
-      </div>
-
-      {/* Qty */}
-      <div style={{ textAlign: "center", fontSize: "12px", fontWeight: 700, color: "#0a0d14" }}>
-        ×{item.quantity}
-      </div>
-
-      {/* Line total */}
-      <div style={{ textAlign: "right", fontSize: "12px", fontWeight: 800, color: "#0a0d14" }}>
-        ₱{fmt(item.product.price * item.quantity)}
-      </div>
-    </div>
-  );
-})}
-
+                      <div style={{ textAlign: "right", fontSize: "12px", fontWeight: 800, color: "#0a0d14" }}>
+                        ₱{fmt(item.product.price * item.quantity)}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Totals */}
@@ -924,8 +872,8 @@ const POSPage = () => {
                     {[
                       { label: "VATable Sales (ex-VAT)", value: `₱${fmt(lastReceipt.vatable_sales)}` },
                       { label: `VAT ${lastReceipt.vat_rate}%`, value: `₱${fmt(lastReceipt.vat_amount)}` },
-                      { label: "VAT-Exempt Sales", value: "₱0.00" },
-                      { label: "Zero-Rated Sales", value: "₱0.00" },
+                      { label: "VAT-Exempt Sales",  value: "₱0.00" },
+                      { label: "Zero-Rated Sales",  value: "₱0.00" },
                     ].map((v, i) => (
                       <div key={i} style={{ display: "flex", justifyContent: "space-between", marginBottom: "2px" }}>
                         <span style={{ fontSize: "10px", color: "rgba(10,13,20,.4)" }}>{v.label}</span>
