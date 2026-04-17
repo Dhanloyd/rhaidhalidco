@@ -797,9 +797,13 @@ const ShopPage = () => {
       });
   }, []);
 
-  const handleAddToCart = (productId: string, selectedSize?: string) => {
-    addToCart(productId, { selected_size: selectedSize });
-  };
+ const handleAddToCart = (productId: string, selectedSize?: string) => {
+  addToCart({
+    product_id: productId,
+    quantity: 1,
+    selected_size: selectedSize,
+  });
+};
 
   const toggleWish = (id: string) => setWishlist(prev => {
     const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next;
