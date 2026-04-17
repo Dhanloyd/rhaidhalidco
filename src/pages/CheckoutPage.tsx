@@ -371,20 +371,6 @@ const ZaloraReceipt = ({
 };
 
 
-      {/* ── Footer note ── */}
-      <div style={{
-        padding: "14px 20px", borderTop: "1px solid rgba(10,13,20,.08)",
-        textAlign: "center",
-        background: "rgba(10,13,20,.02)",
-      }}>
-        <p style={{ fontSize: "10px", color: "rgba(10,13,20,.35)", lineHeight: 1.6 }}>
-          This serves as your official order confirmation. For concerns, contact us.<br />
-          <strong style={{ color: "rgba(10,13,20,.5)" }}>RaidKhalid & Co.</strong> · Powered by PayMongo
-        </p>
-      </div>
-    </div>
-  );
-};
 
 // ─── Checkout Page ──────────────────────────────────────────────────────────
 
