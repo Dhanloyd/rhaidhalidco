@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ShoppingCart, Heart, Eye, ChevronDown, ChevronRight, SlidersHorizontal, X, Star, Check, ArrowUpDown, Grid3X3, LayoutList, Search, Zap, Tag, Truck } from "lucide-react";
+import { ShoppingCart, Heart, Eye, ChevronDown, ChevronRight, SlidersHorizontal, X, Star, Check, ArrowUpDown, Grid3X3, LayoutList, Search, Zap, Tag, Truck, Ruler } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
 import { categoryLabels, categoryIcons, type ProductCategory } from "@/data/products";
 
@@ -45,6 +45,10 @@ const SHOP_STYLES = `
   @keyframes overlayIn {
     from{opacity:0} to{opacity:1}
   }
+  @keyframes slideUp {
+    from { opacity:0; transform:translateY(40px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
 
   .shop-fade-up { animation:fadeUp .55s cubic-bezier(.22,1,.36,1) both; }
   .shop-fade-in { animation:fadeIn .4s ease both; }
@@ -63,7 +67,6 @@ const SHOP_STYLES = `
     box-shadow:0 20px 52px -12px rgba(10,13,20,.18);
   }
 
-  /* Image wrapper */
   .zp-img-wrap {
     position:relative; overflow:hidden;
     background:#f3f4f6;
@@ -75,7 +78,6 @@ const SHOP_STYLES = `
   }
   .zp-card:hover .zp-img-wrap img { transform:scale(1.07); }
 
-  /* Action buttons */
   .zp-actions {
     position:absolute; right:10px; top:10px;
     display:flex; flex-direction:column; gap:8px;
@@ -94,7 +96,6 @@ const SHOP_STYLES = `
   }
   .zp-action-btn:hover { transform:scale(1.12); background:#fff; }
 
-  /* Add to bag bar */
   .zp-add-bar {
     position:absolute; bottom:0; left:0; right:0;
     padding:0 10px 10px;
@@ -115,7 +116,6 @@ const SHOP_STYLES = `
   }
   .zp-add-btn:hover { background:var(--blue); }
 
-  /* Badge */
   .zp-badge {
     position:absolute; top:10px; left:10px; z-index:3;
     padding:3px 9px; border-radius:5px;
@@ -124,7 +124,6 @@ const SHOP_STYLES = `
     animation:badgePop .4s cubic-bezier(.22,1,.36,1) both;
   }
 
-  /* Product info */
   .zp-info { padding:12px 14px 16px; }
   .zp-brand {
     font-size:10px; font-weight:800; letter-spacing:.16em;
@@ -151,7 +150,6 @@ const SHOP_STYLES = `
     display:flex; align-items:center; gap:4px;
   }
 
-  /* ─ Sidebar ─ */
   .zp-sidebar { flex-shrink:0; }
 
   .zp-filter-group { margin-bottom:28px; }
@@ -180,10 +178,8 @@ const SHOP_STYLES = `
     padding:2px 7px; border-radius:999px;
   }
 
-  /* Price range slider */
   .zp-range { width:100%; accent-color:var(--blue); cursor:pointer; }
 
-  /* Color swatch */
   .zp-swatch {
     width:28px; height:28px; border-radius:50%; cursor:pointer;
     border:2px solid transparent; transition:transform .2s ease, border-color .2s ease;
@@ -192,7 +188,6 @@ const SHOP_STYLES = `
   .zp-swatch:hover { transform:scale(1.15); }
   .zp-swatch.active { border-color:#0a0d14; }
 
-  /* Size pill */
   .zp-size {
     padding:6px 14px; border-radius:6px; cursor:pointer;
     font-family:'Outfit',sans-serif; font-size:12px; font-weight:600;
@@ -202,7 +197,6 @@ const SHOP_STYLES = `
   .zp-size:hover { border-color:var(--blue); color:var(--blue); }
   .zp-size.active { background:var(--blue); border-color:var(--blue); color:#fff; }
 
-  /* Sort bar */
   .zp-sort-bar {
     display:flex; align-items:center; justify-content:space-between;
     margin-bottom:20px; gap:12px; flex-wrap:wrap;
@@ -219,9 +213,7 @@ const SHOP_STYLES = `
   }
   .zp-sort-select:hover { border-color:var(--blue); }
 
-  .zp-view-toggle {
-    display:flex; gap:4px;
-  }
+  .zp-view-toggle { display:flex; gap:4px; }
   .zp-view-btn {
     width:36px; height:36px; border-radius:8px; border:1.5px solid var(--border);
     background:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center;
@@ -230,7 +222,6 @@ const SHOP_STYLES = `
   .zp-view-btn.active { background:var(--ink); border-color:var(--ink); color:#fff; }
   .zp-view-btn:hover:not(.active) { border-color:var(--blue); }
 
-  /* Mobile filter drawer */
   .zp-filter-overlay {
     position:fixed; inset:0; background:rgba(10,13,20,.45);
     z-index:50; animation:overlayIn .25s ease;
@@ -243,7 +234,6 @@ const SHOP_STYLES = `
     animation:slideInLeft .3s cubic-bezier(.22,1,.36,1);
   }
 
-  /* Shimmer skeleton */
   .zp-skeleton {
     background:linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
     background-size:400px 100%;
@@ -251,10 +241,7 @@ const SHOP_STYLES = `
     border-radius:var(--r);
   }
 
-  /* Search bar */
-  .zp-search-wrap {
-    position:relative; margin-bottom:20px;
-  }
+  .zp-search-wrap { position:relative; margin-bottom:20px; }
   .zp-search {
     width:100%; padding:10px 14px 10px 40px;
     border:1.5px solid var(--border); border-radius:10px;
@@ -268,11 +255,9 @@ const SHOP_STYLES = `
     pointer-events:none; color:var(--muted);
   }
 
-  /* Banner strip */
   .zp-banner-strip {
     display:flex; align-items:center; justify-content:center; gap:32px;
-    flex-wrap:wrap;
-    padding:14px 20px;
+    flex-wrap:wrap; padding:14px 20px;
     background:#0a0d14; color:#fff;
   }
   .zp-banner-item {
@@ -280,7 +265,6 @@ const SHOP_STYLES = `
     font-family:'Outfit',sans-serif; font-size:12px; font-weight:600; letter-spacing:.06em;
   }
 
-  /* Applied filters */
   .zp-applied-tag {
     display:inline-flex; align-items:center; gap:6px;
     padding:5px 12px; border-radius:999px;
@@ -290,19 +274,16 @@ const SHOP_STYLES = `
   }
   .zp-applied-tag:hover { background:rgba(26,86,219,.18); }
 
-  /* Results count */
   .zp-results-count {
     font-family:'Outfit',sans-serif; font-size:13px; color:var(--muted); font-weight:500;
   }
 
-  /* Empty state */
   .zp-empty {
     display:flex; flex-direction:column; align-items:center; justify-content:center;
     padding:80px 20px; text-align:center;
     background:#fff; border-radius:var(--r); border:1.5px dashed var(--border);
   }
 
-  /* Load more */
   .zp-load-more {
     display:flex; align-items:center; justify-content:center; gap:8px;
     width:100%; padding:14px 0; margin-top:32px;
@@ -312,6 +293,40 @@ const SHOP_STYLES = `
     cursor:pointer; transition:border-color .2s ease, background .2s ease;
   }
   .zp-load-more:hover { border-color:var(--blue); color:var(--blue); background:rgba(26,86,219,.04); }
+
+  /* ─ Size Picker Modal ─ */
+  .zp-size-overlay {
+    position:fixed; inset:0; background:rgba(10,13,20,.55);
+    z-index:100; display:flex; align-items:flex-end; justify-content:center;
+    animation:overlayIn .2s ease;
+    backdrop-filter:blur(6px);
+  }
+  .zp-size-sheet {
+    background:#fff; width:100%; max-width:520px;
+    border-radius:20px 20px 0 0;
+    padding:0 0 32px;
+    animation:slideUp .35s cubic-bezier(.22,1,.36,1);
+    max-height:90vh; overflow-y:auto;
+  }
+  .zp-size-handle {
+    width:40px; height:4px; background:#e5e7eb; border-radius:2px;
+    margin:14px auto 0;
+  }
+  .zp-size-pill {
+    display:flex; align-items:center; justify-content:center;
+    min-width:52px; height:44px; padding:0 14px;
+    border:1.5px solid #e5e7eb; border-radius:8px; cursor:pointer;
+    font-family:'Outfit',sans-serif; font-size:13px; font-weight:600; color:#0a0d14;
+    transition:all .18s ease; position:relative;
+  }
+  .zp-size-pill:hover:not(.oos) { border-color:#0a0d14; background:#f9f9f9; }
+  .zp-size-pill.selected { border-color:#0a0d14; background:#0a0d14; color:#fff; }
+  .zp-size-pill.oos { opacity:.38; cursor:not-allowed; text-decoration:line-through; }
+  .zp-size-pill .zp-stock-dot {
+    position:absolute; top:-4px; right:-4px;
+    width:8px; height:8px; border-radius:50%;
+    background:#f59e0b; border:1.5px solid #fff;
+  }
 
   .stagger-1{animation-delay:.05s} .stagger-2{animation-delay:.12s}
   .stagger-3{animation-delay:.19s} .stagger-4{animation-delay:.26s}
@@ -330,6 +345,9 @@ interface DbProduct {
   sold_count?: number;
   rating?: number;
   review_count?: number;
+  available_sizes?: string[];
+  size_inventory?: { size: string; stock: number }[];
+  out_of_stock_sizes?: string[];
 }
 
 const allCategories = Object.keys(categoryLabels) as ProductCategory[];
@@ -366,27 +384,207 @@ const StarRow = ({ rating = 4.5 }: { rating?: number }) => (
   </div>
 );
 
+/* ─── Size Picker Bottom Sheet ─── */
+const SizePickerSheet = ({
+  product,
+  onClose,
+  onAddToCart,
+}: {
+  product: DbProduct;
+  onClose: () => void;
+  onAddToCart: (productId: string, selectedSize?: string) => void;
+}) => {
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const sizeInventory = product.size_inventory ?? [];
+  const outOfStock = product.out_of_stock_sizes ?? [];
+  const availableSizes = product.available_sizes ?? SIZES;
+  const hasSizes = availableSizes.length > 0;
+  const hasDiscount = product.original_price && Number(product.original_price) > Number(product.price);
+  const discountPct = hasDiscount
+    ? Math.round((1 - Number(product.price) / Number(product.original_price!)) * 100)
+    : 0;
+
+  const getStock = (size: string) => {
+    const inv = sizeInventory.find(s => s.size === size);
+    return inv?.stock ?? 99;
+  };
+
+  const handleAdd = () => {
+    if (hasSizes && !selectedSize) return;
+    onAddToCart(product.id, selectedSize ?? undefined);
+    onClose();
+  };
+
+  return (
+    <div className="zp-size-overlay" onClick={onClose}>
+      <div className="zp-size-sheet" onClick={e => e.stopPropagation()}>
+        <div className="zp-size-handle" />
+
+        {/* Product info row */}
+        <div style={{ display: "flex", gap: "14px", padding: "20px 24px 0", alignItems: "flex-start" }}>
+          <div style={{
+            width: "80px", height: "100px", borderRadius: "10px", overflow: "hidden",
+            background: "#f3f4f6", flexShrink: 0,
+          }}>
+            {product.image_url
+              ? <img src={product.image_url} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <ShoppingCart size={24} style={{ color: "rgba(10,13,20,.2)" }} />
+                </div>
+            }
+          </div>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: "10px", fontWeight: 800, letterSpacing: ".14em", color: "#1a56db", textTransform: "uppercase", marginBottom: "4px" }}>
+              RaidKhalid
+            </p>
+            <h3 style={{ fontFamily: "'Outfit',sans-serif", fontSize: "14px", fontWeight: 600, color: "#0a0d14", lineHeight: 1.4, marginBottom: "8px" }}>
+              {product.name}
+            </h3>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ fontSize: "16px", fontWeight: 800, color: "#0a0d14" }}>₱{Number(product.price).toLocaleString()}</span>
+              {hasDiscount && <>
+                <span style={{ fontSize: "12px", color: "rgba(10,13,20,.4)", textDecoration: "line-through" }}>
+                  ₱{Number(product.original_price).toLocaleString()}
+                </span>
+                <span style={{
+                  fontSize: "11px", fontWeight: 800, color: "#fff",
+                  background: "#ef4444", padding: "2px 7px", borderRadius: "4px",
+                }}>-{discountPct}%</span>
+              </>}
+            </div>
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div style={{ height: "1px", background: "rgba(10,13,20,.08)", margin: "18px 0" }} />
+
+        {/* Size selection */}
+        {hasSizes && (
+          <div style={{ padding: "0 24px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
+              <p style={{ fontFamily: "'Outfit',sans-serif", fontSize: "13px", fontWeight: 700, color: "#0a0d14" }}>
+                Select Size
+                {selectedSize && (
+                  <span style={{ fontWeight: 500, color: "rgba(10,13,20,.5)", marginLeft: "8px" }}>— {selectedSize}</span>
+                )}
+              </p>
+              <button style={{
+                display: "flex", alignItems: "center", gap: "5px",
+                fontSize: "11px", fontWeight: 600, color: "#1a56db",
+                background: "none", border: "none", cursor: "pointer",
+              }}>
+                <Ruler size={12} /> Size Guide
+              </button>
+            </div>
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "6px" }}>
+              {availableSizes.map(size => {
+                const stock = getStock(size);
+                const isOos = stock === 0 || outOfStock.includes(size);
+                const isLow = !isOos && stock <= 3;
+                const isSelected = selectedSize === size;
+
+                return (
+                  <button
+                    key={size}
+                    className={`zp-size-pill${isOos ? " oos" : ""}${isSelected ? " selected" : ""}`}
+                    onClick={() => !isOos && setSelectedSize(size)}
+                    disabled={isOos}
+                  >
+                    {size}
+                    {isLow && <span className="zp-stock-dot" />}
+                    {isSelected && stock > 0 && stock <= 10 && (
+                      <span style={{
+                        position: "absolute", bottom: "-18px", left: "50%", transform: "translateX(-50%)",
+                        fontSize: "9px", fontWeight: 700, color: "#f59e0b", whiteSpace: "nowrap",
+                      }}>
+                        {stock} left
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Low stock legend */}
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "20px", marginBottom: "4px" }}>
+              <span style={{
+                width: "8px", height: "8px", borderRadius: "50%", background: "#f59e0b",
+                border: "1.5px solid rgba(10,13,20,.12)", flexShrink: 0,
+              }} />
+              <span style={{ fontSize: "11px", color: "rgba(10,13,20,.45)", fontWeight: 500 }}>Low stock</span>
+            </div>
+          </div>
+        )}
+
+        {/* No size needed notice */}
+        {!hasSizes && (
+          <div style={{ padding: "0 24px" }}>
+            <p style={{ fontSize: "13px", color: "rgba(10,13,20,.5)", fontWeight: 500, marginBottom: "8px" }}>
+              One size fits all — no size selection needed.
+            </p>
+          </div>
+        )}
+
+        <div style={{ height: "1px", background: "rgba(10,13,20,.08)", margin: "20px 0 20px" }} />
+
+        {/* CTA */}
+        <div style={{ padding: "0 24px", display: "flex", flexDirection: "column", gap: "10px" }}>
+          <button
+            onClick={handleAdd}
+            disabled={hasSizes && !selectedSize}
+            style={{
+              width: "100%", padding: "15px 0",
+              background: hasSizes && !selectedSize ? "rgba(10,13,20,.12)" : "#0a0d14",
+              color: hasSizes && !selectedSize ? "rgba(10,13,20,.35)" : "#fff",
+              border: "none", borderRadius: "10px", cursor: hasSizes && !selectedSize ? "not-allowed" : "pointer",
+              fontFamily: "'Outfit',sans-serif", fontSize: "13px", fontWeight: 700,
+              letterSpacing: ".08em", textTransform: "uppercase",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+              transition: "all .2s ease",
+            }}>
+            <ShoppingCart size={15} />
+            {hasSizes && !selectedSize ? "Select a Size First" : "Add to Bag"}
+          </button>
+          <button onClick={onClose} style={{
+            width: "100%", padding: "13px 0",
+            background: "transparent", color: "rgba(10,13,20,.5)",
+            border: "1.5px solid rgba(10,13,20,.12)", borderRadius: "10px", cursor: "pointer",
+            fontFamily: "'Outfit',sans-serif", fontSize: "12px", fontWeight: 600,
+            letterSpacing: ".06em",
+          }}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 /* ─── Product Card ─── */
 const ZProductCard = ({
   product,
   wished,
   onWish,
+  onSelectSize,
   view = "grid",
   style = {},
 }: {
   product: DbProduct;
   wished: boolean;
   onWish: (id: string) => void;
+  onSelectSize: (product: DbProduct) => void;
   view?: "grid" | "list";
   style?: React.CSSProperties;
 }) => {
-  const { addToCart } = useCart();
   const rating = product.rating ?? (4 + Math.random()).toFixed(1);
   const reviews = product.review_count ?? Math.floor(Math.random() * 150 + 10);
   const hasDiscount = product.original_price && Number(product.original_price) > Number(product.price);
   const discountPct = hasDiscount
     ? Math.round((1 - Number(product.price) / Number(product.original_price!)) * 100)
     : 0;
+  const availableSizes = product.available_sizes ?? [];
+  const hasSizes = availableSizes.length > 0;
 
   if (view === "list") {
     return (
@@ -416,6 +614,17 @@ const ZProductCard = ({
             <StarRow rating={Number(rating)} />
             <span className="zp-review-count">({reviews})</span>
           </div>
+          {/* Sizes quick preview */}
+          {hasSizes && (
+            <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+              {availableSizes.slice(0, 6).map(s => (
+                <span key={s} style={{
+                  fontSize: "10px", fontWeight: 600, padding: "2px 7px", borderRadius: "4px",
+                  border: "1px solid rgba(10,13,20,.15)", color: "rgba(10,13,20,.6)",
+                }}>{s}</span>
+              ))}
+            </div>
+          )}
           <div className="zp-price-row">
             <span className="zp-price">₱{Number(product.price).toLocaleString()}</span>
             {hasDiscount && <>
@@ -428,8 +637,8 @@ const ZProductCard = ({
           )}
           <div style={{ marginTop: "auto", paddingTop: "12px" }}>
             <button className="zp-add-btn" style={{ width: "auto", padding: "10px 24px", borderRadius: "8px" }}
-              onClick={(e) => { e.preventDefault(); addToCart(product.id); }}>
-              <ShoppingCart size={13} /> Add to Bag
+              onClick={(e) => { e.preventDefault(); onSelectSize(product); }}>
+              <ShoppingCart size={13} /> {hasSizes ? "Select Size" : "Add to Bag"}
             </button>
           </div>
         </div>
@@ -447,7 +656,6 @@ const ZProductCard = ({
             </div>
         }
 
-        {/* Wishlist + Quick View */}
         <div className="zp-actions">
           <button className="zp-action-btn" onClick={(e) => { e.preventDefault(); onWish(product.id); }}>
             <Heart size={15} fill={wished ? "#ef4444" : "none"} color={wished ? "#ef4444" : "#0a0d14"} strokeWidth={1.8} />
@@ -457,7 +665,6 @@ const ZProductCard = ({
           </button>
         </div>
 
-        {/* Badge */}
         {product.badge && (
           <div className="zp-badge" style={{
             background: product.badge === "hot" ? "#ef4444" : "#1a56db", color: "#fff",
@@ -466,7 +673,6 @@ const ZProductCard = ({
           </div>
         )}
 
-        {/* Sold count */}
         {(product.sold_count ?? 0) > 30 && (
           <div style={{
             position: "absolute", bottom: 48, left: 10, zIndex: 3,
@@ -478,10 +684,9 @@ const ZProductCard = ({
           </div>
         )}
 
-        {/* Add to bag bar */}
         <div className="zp-add-bar">
-          <button className="zp-add-btn" onClick={(e) => { e.preventDefault(); addToCart(product.id); }}>
-            <ShoppingCart size={13} /> Add to Bag
+          <button className="zp-add-btn" onClick={(e) => { e.preventDefault(); onSelectSize(product); }}>
+            <ShoppingCart size={13} /> {hasSizes ? "Select Size" : "Add to Bag"}
           </button>
         </div>
       </div>
@@ -493,6 +698,22 @@ const ZProductCard = ({
           <StarRow rating={Number(rating)} />
           <span className="zp-review-count">({reviews})</span>
         </div>
+        {/* Sizes quick preview */}
+        {hasSizes && (
+          <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginBottom: "8px" }}>
+            {availableSizes.slice(0, 5).map(s => (
+              <span key={s} style={{
+                fontSize: "10px", fontWeight: 600, padding: "2px 7px", borderRadius: "4px",
+                border: "1px solid rgba(10,13,20,.15)", color: "rgba(10,13,20,.55)",
+              }}>{s}</span>
+            ))}
+            {availableSizes.length > 5 && (
+              <span style={{ fontSize: "10px", color: "rgba(10,13,20,.4)", fontWeight: 500, alignSelf: "center" }}>
+                +{availableSizes.length - 5}
+              </span>
+            )}
+          </div>
+        )}
         <div className="zp-price-row">
           <span className="zp-price">₱{Number(product.price).toLocaleString()}</span>
           {hasDiscount && <>
@@ -524,7 +745,6 @@ const FilterSection = ({
   );
 };
 
-/* ─── Skeleton card ─── */
 const SkeletonCard = () => (
   <div style={{ borderRadius: "10px", overflow: "hidden", background: "#fff" }}>
     <div className="zp-skeleton" style={{ height: "260px" }} />
@@ -541,6 +761,7 @@ const SkeletonCard = () => (
    MAIN PAGE
 ═══════════════════════════════════════════════ */
 const ShopPage = () => {
+  const { addToCart } = useCart();
   const [products, setProducts] = useState<DbProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<string>("all");
@@ -553,6 +774,9 @@ const ShopPage = () => {
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [showMobileFilter, setShowMobileFilter] = useState(false);
   const [visibleCount, setVisibleCount] = useState(12);
+
+  // Size picker sheet state
+  const [sizePickerProduct, setSizePickerProduct] = useState<DbProduct | null>(null);
 
   useEffect(() => {
     const id = "zp-shop-styles";
@@ -573,13 +797,16 @@ const ShopPage = () => {
       });
   }, []);
 
+  const handleAddToCart = (productId: string, selectedSize?: string) => {
+    addToCart(productId, { selected_size: selectedSize });
+  };
+
   const toggleWish = (id: string) => setWishlist(prev => {
     const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next;
   });
   const toggleColor = (c: string) => setSelectedColors(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]);
   const toggleSize = (s: string) => setSelectedSizes(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
 
-  /* Filtering */
   let filtered = products.filter(p => {
     if (activeCategory !== "all" && p.category !== activeCategory) return false;
     if (Number(p.price) > priceMax) return false;
@@ -587,7 +814,6 @@ const ShopPage = () => {
     return true;
   });
 
-  /* Sorting */
   filtered = [...filtered].sort((a, b) => {
     if (sortBy === "price_asc") return Number(a.price) - Number(b.price);
     if (sortBy === "price_desc") return Number(b.price) - Number(a.price);
@@ -601,7 +827,6 @@ const ShopPage = () => {
   }, {} as Record<string, number>);
 
   const maxPrice = Math.max(...products.map(p => Number(p.price)), 5000);
-
   const activeFiltersCount = (activeCategory !== "all" ? 1 : 0) + selectedColors.length + selectedSizes.length + (priceMax < maxPrice ? 1 : 0);
 
   const clearAllFilters = () => {
@@ -614,10 +839,8 @@ const ShopPage = () => {
 
   const visibleProducts = filtered.slice(0, visibleCount);
 
-  /* Sidebar content (shared between desktop + mobile drawer) */
   const SidebarContent = () => (
     <div>
-      {/* Search */}
       <div className="zp-search-wrap">
         <Search size={15} className="zp-search-icon" />
         <input
@@ -628,7 +851,6 @@ const ShopPage = () => {
         />
       </div>
 
-      {/* Categories */}
       <FilterSection title="Categories">
         <div
           className={`zp-cat-item ${activeCategory === "all" ? "active" : ""}`}
@@ -651,7 +873,6 @@ const ShopPage = () => {
         ))}
       </FilterSection>
 
-      {/* Price range */}
       <FilterSection title="Price Range">
         <div style={{ marginBottom: "12px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
@@ -667,7 +888,6 @@ const ShopPage = () => {
         </div>
       </FilterSection>
 
-      {/* Color */}
       <FilterSection title="Color" defaultOpen={false}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
           {COLORS.map(c => (
@@ -684,7 +904,6 @@ const ShopPage = () => {
         </div>
       </FilterSection>
 
-      {/* Size */}
       <FilterSection title="Size" defaultOpen={false}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
           {SIZES.map(s => (
@@ -698,7 +917,6 @@ const ShopPage = () => {
         </div>
       </FilterSection>
 
-      {/* Badges */}
       <FilterSection title="Product Type" defaultOpen={false}>
         {["featured", "hot", "new"].map(b => (
           <label key={b} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "7px 0", cursor: "pointer" }}>
@@ -710,7 +928,6 @@ const ShopPage = () => {
         ))}
       </FilterSection>
 
-      {/* Clear filters */}
       {activeFiltersCount > 0 && (
         <button onClick={clearAllFilters} style={{
           width: "100%", padding: "10px 0", borderRadius: "8px",
@@ -729,7 +946,15 @@ const ShopPage = () => {
   return (
     <div style={{ fontFamily: "'Outfit',sans-serif", background: "var(--bg)", minHeight: "100vh" }}>
 
-      {/* ─── Benefits strip ─── */}
+      {/* Size Picker Sheet */}
+      {sizePickerProduct && (
+        <SizePickerSheet
+          product={sizePickerProduct}
+          onClose={() => setSizePickerProduct(null)}
+          onAddToCart={handleAddToCart}
+        />
+      )}
+
       <div className="zp-banner-strip">
         {[
           { icon: <Truck size={15} />, text: "Free Shipping on ₱500+" },
@@ -743,19 +968,16 @@ const ShopPage = () => {
         ))}
       </div>
 
-      {/* ─── Hero header ─── */}
       <div style={{
         background: "linear-gradient(135deg, #060b18 0%, #0f1f3d 55%, #1a2e5a 100%)",
         padding: "48px 0 56px",
         position: "relative", overflow: "hidden",
       }}>
-        {/* grid overlay */}
         <div style={{
           position: "absolute", inset: 0,
           backgroundImage: "linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px)",
           backgroundSize: "52px 52px",
         }} />
-        {/* Glow */}
         <div style={{
           position: "absolute", top: "-40%", left: "30%",
           width: "500px", height: "500px", borderRadius: "50%",
@@ -764,7 +986,6 @@ const ShopPage = () => {
         }} />
 
         <div className="container mx-auto px-6 relative" style={{ zIndex: 1 }}>
-          {/* Breadcrumb */}
           <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "20px", opacity: .55 }}>
             <span style={{ fontSize: "12px", fontWeight: 600, color: "#fff" }}>Home</span>
             <ChevronRight size={12} color="#fff" />
@@ -798,11 +1019,9 @@ const ShopPage = () => {
         </div>
       </div>
 
-      {/* ─── Main layout ─── */}
       <div className="container mx-auto px-4 md:px-6 py-8">
         <div style={{ display: "flex", gap: "24px", alignItems: "flex-start" }}>
 
-          {/* ─ Sidebar (desktop) ─ */}
           <aside className="zp-sidebar hidden md:block" style={{ width: "240px", flexShrink: 0 }}>
             <div style={{ background: "#fff", borderRadius: "12px", padding: "20px", border: "1.5px solid var(--border)", position: "sticky", top: "16px" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
@@ -819,10 +1038,8 @@ const ShopPage = () => {
             </div>
           </aside>
 
-          {/* ─ Product area ─ */}
           <div style={{ flex: 1, minWidth: 0 }}>
 
-            {/* Applied filters row */}
             {(search || activeCategory !== "all" || selectedColors.length > 0 || selectedSizes.length > 0) && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "16px" }}>
                 {search && (
@@ -848,10 +1065,8 @@ const ShopPage = () => {
               </div>
             )}
 
-            {/* Sort bar */}
             <div className="zp-sort-bar">
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                {/* Mobile filter btn */}
                 <button
                   className="md:hidden"
                   onClick={() => setShowMobileFilter(true)}
@@ -896,7 +1111,6 @@ const ShopPage = () => {
               </div>
             </div>
 
-            {/* Category quick pills */}
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "20px" }}>
               <button
                 onClick={() => setActiveCategory("all")}
@@ -926,7 +1140,6 @@ const ShopPage = () => {
               ))}
             </div>
 
-            {/* Grid / List */}
             {loading ? (
               <div style={{
                 display: "grid",
@@ -951,7 +1164,8 @@ const ShopPage = () => {
             ) : view === "list" ? (
               <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                 {visibleProducts.map((p, i) => (
-                  <ZProductCard key={p.id} product={p} wished={wishlist.has(p.id)} onWish={toggleWish} view="list"
+                  <ZProductCard key={p.id} product={p} wished={wishlist.has(p.id)} onWish={toggleWish}
+                    onSelectSize={setSizePickerProduct} view="list"
                     style={{ animationDelay: `${(i % 6) * 0.07}s` }} />
                 ))}
               </div>
@@ -963,19 +1177,18 @@ const ShopPage = () => {
               }}>
                 {visibleProducts.map((p, i) => (
                   <ZProductCard key={p.id} product={p} wished={wishlist.has(p.id)} onWish={toggleWish}
+                    onSelectSize={setSizePickerProduct}
                     style={{ animationDelay: `${(i % 6) * 0.07}s` }} />
                 ))}
               </div>
             )}
 
-            {/* Load more */}
             {visibleCount < filtered.length && (
               <button className="zp-load-more" onClick={() => setVisibleCount(c => c + 12)}>
                 Load More Products <ChevronDown size={15} />
               </button>
             )}
 
-            {/* End note */}
             {!loading && filtered.length > 0 && visibleCount >= filtered.length && (
               <p style={{ textAlign: "center", marginTop: "32px", fontSize: "13px", color: "var(--muted)", fontWeight: 500 }}>
                 ✓ You've seen all {filtered.length} products
@@ -985,7 +1198,6 @@ const ShopPage = () => {
         </div>
       </div>
 
-      {/* ─ Mobile filter drawer ─ */}
       {showMobileFilter && (
         <>
           <div className="zp-filter-overlay" onClick={() => setShowMobileFilter(false)} />

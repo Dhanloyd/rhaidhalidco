@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   Minus, Plus, Trash2, ShoppingCart, ChevronRight,
   Tag, Truck, Shield, RotateCcw, Heart, Ruler,
-  Lock, AlertTriangle, CheckCircle2, Package,
+  Lock, AlertTriangle, CheckCircle2, Package, ChevronDown,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useState, useCallback, useEffect } from "react";
@@ -45,8 +45,8 @@ const ColorSwatches = ({
 const SizePills = ({
   sizeInventory, outOfStock, selected, onSelect,
 }: {
-  sizeInventory: SizeStock[];     // full inventory with stock counts
-  outOfStock: string[];           // sizes with 0 stock
+  sizeInventory: SizeStock[];
+  outOfStock: string[];
   selected?: string | null;
   onSelect: (size: string) => void;
 }) => {
@@ -72,11 +72,9 @@ const SizePills = ({
               }`}
           >
             {size}
-            {/* Low stock dot */}
             {lowStock && !isSelected && (
               <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400 border border-background" />
             )}
-            {/* Stock tooltip on hover via title — also show inline on selected */}
             {isSelected && !oos && (
               <span className="ml-1 text-[9px] opacity-60 font-normal">({stock})</span>
             )}
@@ -84,6 +82,23 @@ const SizePills = ({
         );
       })}
     </div>
+  );
+};
+
+// ─── Zalora-style size badge ──────────────────────────────────────────────────
+
+const SizeBadge = ({ size, category }: { size: string; category?: string }) => {
+  const isMeasurement = /^\d/.test(size); // e.g. "32x30"
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: "4px",
+      padding: "3px 10px", borderRadius: "4px",
+      background: "rgba(10,13,20,.06)", border: "1px solid rgba(10,13,20,.12)",
+      fontSize: "11px", fontWeight: 700, color: "#0a0d14", letterSpacing: ".04em",
+      textTransform: isMeasurement ? "none" : "uppercase",
+    }}>
+      {isMeasurement ? "📏" : "👕"} {size}
+    </span>
   );
 };
 
@@ -96,10 +111,8 @@ const CartPage = () => {
 
   const cartItems = items as CartItem[];
 
-  // Local variant state (mirrors DB, also used optimistically)
   const [variants, setVariants] = useState<Record<string, { selectedColor?: string | null; selectedSize?: string | null }>>({});
 
-  // Sync variant state when cart items change
   useEffect(() => {
     const init: typeof variants = {};
     cartItems.forEach((item) => {
@@ -111,16 +124,12 @@ const CartPage = () => {
     setVariants(init);
   }, [items]);
 
-  // Promo
   const [promoCode, setPromoCode] = useState("");
   const [promoApplied, setPromoApplied] = useState<string | null>(null);
   const [promoDiscount, setPromoDiscount] = useState(0);
   const [promoError, setPromoError] = useState("");
 
-  // Wishlist
   const [wishlist, setWishlist] = useState<Set<string>>(new Set());
-
-  // ── Variant setters (optimistic + DB persist) ──────────────────────────────
 
   const setColor = useCallback((itemId: string, colorName: string) => {
     setVariants((prev) => ({ ...prev, [itemId]: { ...prev[itemId], selectedColor: colorName } }));
@@ -133,8 +142,6 @@ const CartPage = () => {
     const item = cartItems.find((i) => i.id === itemId);
     if (item) updateQuantity(item.product_id, item.quantity, { selected_size: size });
   }, [cartItems, updateQuantity]);
-
-  // ── Promo ──────────────────────────────────────────────────────────────────
 
   const applyPromo = () => {
     const code = promoCode.trim().toUpperCase();
@@ -155,8 +162,6 @@ const CartPage = () => {
     toast.info("Promo removed.");
   };
 
-  // ── Wishlist ───────────────────────────────────────────────────────────────
-
   const toggleWishlist = (productId: string) => {
     setWishlist((prev) => {
       const next = new Set(prev);
@@ -166,26 +171,33 @@ const CartPage = () => {
     });
   };
 
-  const moveToWishlist = (item: CartItem) => {
-    setWishlist((prev) => new Set(prev).add(item.product_id));
-    removeFromCart(item.product_id);
-    toast.success(`"${item.product?.name}" moved to wishlist.`);
-  };
-
-  // ── Totals ─────────────────────────────────────────────────────────────────
+ // moveToWishlist function
+const moveToWishlist = (item: CartItem) => {
+  setWishlist((prev) => new Set(prev).add(item.product_id));
+  removeFromCart(item.id);   // ← was item.product_id
+  toast.success(`"${item.product?.name}" moved to wishlist.`);
+};
 
   const shippingFee  = totalPrice >= 2000 ? 0 : 100;
   const freeShipPct  = Math.min(100, Math.round((totalPrice / 2000) * 100));
   const freeShipNeed = Math.max(0, 2000 - totalPrice);
   const grandTotal   = totalPrice + shippingFee - promoDiscount;
 
-  // Items that have sizes available but none selected
   const hasMissingSize = cartItems.some((item) => {
     const sizeInv = item.product?.size_inventory ?? [];
     return sizeInv.length > 0 && !variants[item.id]?.selectedSize;
   });
 
-  // ── Guards ─────────────────────────────────────────────────────────────────
+  // ── Group items by product category (Zalora-style) ────────────────────────
+  type GroupedItems = Record<string, CartItem[]>;
+  const groupedByCategory = cartItems.reduce<GroupedItems>((acc, item) => {
+    const cat = item.product?.category ?? "Other";
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(item);
+    return acc;
+  }, {});
+
+  const categoryGroups = Object.entries(groupedByCategory);
 
   if (!user) {
     return (
@@ -204,8 +216,6 @@ const CartPage = () => {
     );
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
-
   return (
     <div className="min-h-screen bg-muted/30 pt-20 pb-16">
 
@@ -222,13 +232,11 @@ const CartPage = () => {
 
       <div className="container mx-auto px-4 py-8 max-w-6xl">
 
-        {/* Loading */}
         {loading ? (
           <div className="flex justify-center py-24">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
           </div>
 
-        /* Empty */
         ) : cartItems.length === 0 ? (
           <div className="bg-background rounded-2xl border border-border p-16 text-center max-w-md mx-auto mt-8">
             <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center mx-auto mb-6">
@@ -243,12 +251,11 @@ const CartPage = () => {
             </Link>
           </div>
 
-        /* Filled */
         ) : (
           <div className="grid lg:grid-cols-3 gap-6 items-start">
 
-            {/* ── LEFT: Items ── */}
-            <div className="lg:col-span-2 space-y-3">
+            {/* ── LEFT: Items (grouped by category, Zalora-style) ── */}
+            <div className="lg:col-span-2 space-y-4">
 
               <div className="flex items-center justify-between mb-2">
                 <h1 className="font-heading text-xl uppercase tracking-wider text-foreground">
@@ -260,174 +267,262 @@ const CartPage = () => {
                 </button>
               </div>
 
-              {cartItems.map((item) => {
-                const product        = item.product;
-                const itemVariant    = variants[item.id] ?? {};
-                const colors         = product?.colors ?? [];
-                const sizeInventory  = product?.size_inventory ?? [];
-                const outOfStock     = product?.out_of_stock_sizes ?? [];
-                const unitPrice      = product?.price ?? 0;
-                const lineTotal      = unitPrice * item.quantity;
-                const isWishlisted   = wishlist.has(item.product_id);
-                const hasSizes       = sizeInventory.length > 0;
-                const sizeSelected   = itemVariant.selectedSize;
-                const sizeMissing    = hasSizes && !sizeSelected;
-
-                // Max qty for selected size
-                const selectedSizeStock = sizeInventory.find((s) => s.size === sizeSelected)?.stock ?? 99;
-
-                return (
-                  <div key={item.id}
-                    className={`bg-background rounded-xl border p-4 flex gap-4 transition-all duration-200 relative
-                      ${sizeMissing ? "border-amber-300 bg-amber-50/30" : "border-border/60 hover:border-border"}`}
-                  >
-                    {/* Wishlist heart */}
-                    <button onClick={() => toggleWishlist(item.product_id)}
-                      className={`absolute top-3 right-3 transition-colors p-1 ${
-                        isWishlisted ? "text-red-500" : "text-muted-foreground hover:text-red-400"}`}>
-                      <Heart size={16} fill={isWishlisted ? "currentColor" : "none"} />
-                    </button>
-
-                    {/* Image */}
-                    <Link to="/shop" className="shrink-0">
-                      <div className="w-28 h-36 rounded-lg bg-muted overflow-hidden relative">
-                        {product?.image_url ? (
-                          <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <Package size={24} className="text-muted-foreground" />
-                          </div>
-                        )}
-                        {product?.discount_price && (
-                          <span className="absolute top-2 left-2 bg-destructive text-destructive-foreground text-[9px] font-semibold px-1.5 py-0.5 rounded tracking-wide">
-                            SALE
-                          </span>
-                        )}
-                      </div>
-                    </Link>
-
-                    {/* Body */}
-                    <div className="flex-1 min-w-0 flex flex-col gap-2 py-0.5 pr-6">
-
-                      {/* Brand + name */}
-                      <div>
-                        {product?.brand && (
-                          <p className="text-[10px] font-semibold tracking-widest uppercase text-muted-foreground mb-0.5">
-                            {product.brand}
-                          </p>
-                        )}
-                        <h3 className="font-medium text-foreground text-sm leading-snug line-clamp-2">
-                          {product?.name}
-                        </h3>
-                      </div>
-
-                      {/* Price */}
-                      <div className="flex items-baseline gap-2 flex-wrap">
-                        <span className="font-heading text-base text-foreground">₱{unitPrice.toLocaleString()}</span>
-                        {product?.discount_price && (
-                          <>
-                            <span className="text-xs text-muted-foreground line-through">₱{product.discount_price.toLocaleString()}</span>
-                            <span className="text-[11px] text-destructive font-medium">
-                              −₱{(product.discount_price - unitPrice).toLocaleString()}
-                            </span>
-                          </>
-                        )}
-                      </div>
-
-                      {/* Color selector */}
-                      {colors.length > 0 && (
-                        <div>
-                          <p className="text-[11px] text-muted-foreground mb-1.5">
-                            Color: <span className="text-foreground font-medium">{itemVariant.selectedColor ?? "—"}</span>
-                          </p>
-                          <ColorSwatches
-                            colors={colors}
-                            selected={itemVariant.selectedColor}
-                            onSelect={(name) => setColor(item.id, name)}
-                          />
-                        </div>
-                      )}
-
-                      {/* Size selector */}
-                      {hasSizes && (
-                        <div>
-                          <div className="flex items-center justify-between mb-1.5">
-                            <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-                              Size:{" "}
-                              <span className={sizeSelected ? "text-foreground font-semibold" : "text-amber-600 font-semibold"}>
-                                {sizeSelected ?? "Select size"}
-                              </span>
-                              {sizeMissing && <AlertTriangle size={11} className="text-amber-500 ml-0.5" />}
-                              {sizeSelected && !sizeMissing && <CheckCircle2 size={11} className="text-green-500 ml-0.5" />}
-                            </p>
-                            <button className="flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2">
-                              <Ruler size={10} /> Size guide
-                            </button>
-                          </div>
-
-                          <SizePills
-                            sizeInventory={sizeInventory}
-                            outOfStock={outOfStock}
-                            selected={sizeSelected}
-                            onSelect={(size) => setSize(item.id, size)}
-                          />
-
-                          {/* Low stock warning for selected size */}
-                          {sizeSelected && selectedSizeStock > 0 && selectedSizeStock <= 5 && (
-                            <p className="text-[10px] text-amber-600 font-medium mt-1 flex items-center gap-1">
-                              <AlertTriangle size={10} /> Only {selectedSizeStock} left in {sizeSelected}
-                            </p>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Qty + actions */}
-                      <div className="flex items-center justify-between mt-auto flex-wrap gap-2">
-                        <div className="flex items-center border border-border rounded-lg overflow-hidden">
-                          <button
-                            onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
-                            className="w-8 h-8 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                            <Minus size={13} />
-                          </button>
-                          <span className="w-10 text-center text-sm font-medium text-foreground border-x border-border h-8 flex items-center justify-center">
-                            {item.quantity}
-                          </span>
-                          <button
-                            onClick={() => {
-                              if (sizeSelected && item.quantity >= selectedSizeStock) {
-                                toast.error(`Only ${selectedSizeStock} left in ${sizeSelected}`);
-                                return;
-                              }
-                              updateQuantity(item.product_id, item.quantity + 1);
-                            }}
-                            className="w-8 h-8 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                            disabled={sizeSelected ? item.quantity >= selectedSizeStock : false}>
-                            <Plus size={13} />
-                          </button>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                          <p className="font-heading text-sm text-foreground">₱{lineTotal.toLocaleString()}</p>
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => moveToWishlist(item)}
-                              className="text-[11px] text-muted-foreground hover:text-foreground transition-colors flex items-center gap-0.5">
-                              <Heart size={12} /> Wishlist
-                            </button>
-                            <span className="text-border">|</span>
-                            <button onClick={() => { removeFromCart(item.product_id); toast.info("Item removed."); }}
-                              className="text-muted-foreground hover:text-destructive transition-colors p-1">
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
+              {/* Category-grouped sections */}
+              {categoryGroups.map(([category, groupItems]) => (
+                <div key={category} className="bg-background rounded-xl border border-border/60 overflow-hidden">
+                  {/* Category header */}
+                  <div style={{
+                    padding: "12px 16px",
+                    background: "linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%)",
+                    borderBottom: "1px solid rgba(26,86,219,.1)",
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span style={{
+                        fontSize: "10px", fontWeight: 800, letterSpacing: ".18em",
+                        textTransform: "uppercase", color: "#1a56db",
+                      }}>
+                        {category}
+                      </span>
+                      <span style={{
+                        fontSize: "10px", fontWeight: 700, color: "rgba(26,86,219,.6)",
+                        background: "rgba(26,86,219,.08)", padding: "1px 7px", borderRadius: "999px",
+                      }}>
+                        {groupItems.length} {groupItems.length === 1 ? "item" : "items"}
+                      </span>
                     </div>
+                    <span style={{ fontSize: "11px", color: "rgba(10,13,20,.4)", fontWeight: 500 }}>
+                      ₱{groupItems.reduce((s, item) => s + (item.product?.price ?? 0) * item.quantity, 0).toLocaleString()}
+                    </span>
                   </div>
-                );
-              })}
+
+                  {/* Items in category */}
+                  <div>
+                    {groupItems.map((item, itemIndex) => {
+                      const product        = item.product;
+                      const itemVariant    = variants[item.id] ?? {};
+                      const colors         = product?.colors ?? [];
+                      const sizeInventory  = product?.size_inventory ?? [];
+                      const outOfStock     = product?.out_of_stock_sizes ?? [];
+                      const unitPrice      = product?.price ?? 0;
+                      const lineTotal      = unitPrice * item.quantity;
+                      const isWishlisted   = wishlist.has(item.product_id);
+                      const hasSizes       = sizeInventory.length > 0;
+                      const sizeSelected   = itemVariant.selectedSize ?? item.selected_size;
+                      const sizeMissing    = hasSizes && !sizeSelected;
+                      const selectedSizeStock = sizeInventory.find((s) => s.size === sizeSelected)?.stock ?? 99;
+
+                      return (
+                        <div key={item.id}
+                          style={{
+                            padding: "16px",
+                            borderBottom: itemIndex < groupItems.length - 1 ? "1px solid rgba(10,13,20,.06)" : "none",
+                            background: sizeMissing ? "rgba(245,158,11,.03)" : "transparent",
+                            borderLeft: sizeMissing ? "3px solid #f59e0b" : "3px solid transparent",
+                          }}
+                        >
+                          {/* Item row */}
+                          <div style={{ display: "flex", gap: "14px" }}>
+                            {/* Wishlist heart */}
+                            <button onClick={() => toggleWishlist(item.product_id)}
+                              style={{
+                                position: "absolute", 
+                                color: isWishlisted ? "#ef4444" : "rgba(10,13,20,.3)",
+                                background: "none", border: "none", cursor: "pointer",
+                                padding: "4px", marginLeft: "auto",
+                                transition: "color .2s ease",
+                              }}
+                              className="hidden"
+                            />
+
+                            {/* Image */}
+                            <Link to="/shop" style={{ flexShrink: 0 }}>
+                              <div style={{
+                                width: "100px", height: "130px", borderRadius: "8px",
+                                background: "#f3f4f6", overflow: "hidden", position: "relative",
+                              }}>
+                                {product?.image_url ? (
+                                  <img src={product.image_url} alt={product.name}
+                                    style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                ) : (
+                                  <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                    <Package size={24} style={{ color: "rgba(10,13,20,.2)" }} />
+                                  </div>
+                                )}
+                                {product?.discount_price && (
+                                  <span style={{
+                                    position: "absolute", top: "6px", left: "6px",
+                                    background: "#ef4444", color: "#fff",
+                                    fontSize: "9px", fontWeight: 700, padding: "2px 5px", borderRadius: "3px",
+                                    letterSpacing: ".04em",
+                                  }}>SALE</span>
+                                )}
+                              </div>
+                            </Link>
+
+                            {/* Body */}
+                            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "6px" }}>
+
+                              {/* Top row: name + actions */}
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                                <div style={{ flex: 1, paddingRight: "8px" }}>
+                                  {product?.brand && (
+                                    <p style={{ fontSize: "9px", fontWeight: 800, letterSpacing: ".18em", textTransform: "uppercase", color: "rgba(10,13,20,.4)", marginBottom: "3px" }}>
+                                      {product.brand}
+                                    </p>
+                                  )}
+                                  <h3 style={{ fontWeight: 600, color: "#0a0d14", fontSize: "13px", lineHeight: 1.4 }}
+                                    className="line-clamp-2">
+                                    {product?.name}
+                                  </h3>
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+                                  <button onClick={() => toggleWishlist(item.product_id)}
+                                    style={{ color: isWishlisted ? "#ef4444" : "rgba(10,13,20,.3)", background: "none", border: "none", cursor: "pointer", padding: "2px" }}>
+                                    <Heart size={15} fill={isWishlisted ? "currentColor" : "none"} />
+                                  </button>
+                                 // Trash button
+<button onClick={() => { removeFromCart(item.id); toast.info("Item removed."); }}
+                                    style={{ color: "rgba(10,13,20,.3)", background: "none", border: "none", cursor: "pointer", padding: "2px", transition: "color .2s ease" }}
+                                    onMouseEnter={e => (e.currentTarget.style.color = "#ef4444")}
+                                    onMouseLeave={e => (e.currentTarget.style.color = "rgba(10,13,20,.3)")}>
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* ── SIZE DISPLAY (Zalora-style) ── */}
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                                {sizeSelected ? (
+                                  <SizeBadge size={sizeSelected} category={category} />
+                                ) : hasSizes ? (
+                                  <span style={{
+                                    display: "inline-flex", alignItems: "center", gap: "5px",
+                                    padding: "3px 10px", borderRadius: "4px",
+                                    background: "rgba(245,158,11,.1)", border: "1px solid rgba(245,158,11,.3)",
+                                    fontSize: "11px", fontWeight: 700, color: "#d97706",
+                                  }}>
+                                    <AlertTriangle size={10} /> Select Size
+                                  </span>
+                                ) : null}
+
+                                {itemVariant.selectedColor && (
+                                  <span style={{
+                                    display: "inline-flex", alignItems: "center", gap: "5px",
+                                    padding: "3px 10px", borderRadius: "4px",
+                                    background: "rgba(10,13,20,.05)", border: "1px solid rgba(10,13,20,.1)",
+                                    fontSize: "11px", fontWeight: 600, color: "#0a0d14",
+                                  }}>
+                                    🎨 {itemVariant.selectedColor}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Price */}
+                              <div style={{ display: "flex", alignItems: "baseline", gap: "8px" }}>
+                                <span style={{ fontSize: "14px", fontWeight: 800, color: "#0a0d14" }}>
+                                  ₱{unitPrice.toLocaleString()}
+                                </span>
+                                {product?.discount_price && (
+                                  <>
+                                    <span style={{ fontSize: "11px", color: "rgba(10,13,20,.35)", textDecoration: "line-through" }}>
+                                      ₱{product.discount_price.toLocaleString()}
+                                    </span>
+                                    <span style={{ fontSize: "10px", color: "#ef4444", fontWeight: 700 }}>
+                                      −₱{(product.discount_price - unitPrice).toLocaleString()}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+
+                              {/* Color selector */}
+                              {colors.length > 0 && (
+                                <div>
+                                  <p style={{ fontSize: "10px", color: "rgba(10,13,20,.4)", marginBottom: "5px", fontWeight: 600 }}>
+                                    Color: <span style={{ color: "#0a0d14" }}>{itemVariant.selectedColor ?? "—"}</span>
+                                  </p>
+                                  <ColorSwatches
+                                    colors={colors}
+                                    selected={itemVariant.selectedColor}
+                                    onSelect={(name) => setColor(item.id, name)}
+                                  />
+                                </div>
+                              )}
+
+                             
+
+                              {/* Qty + line total */}
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "4px" }}>
+                                <div style={{
+                                  display: "flex", alignItems: "center",
+                                  border: "1.5px solid rgba(10,13,20,.12)", borderRadius: "8px", overflow: "hidden",
+                                }}>
+                                  <button
+                                    onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
+                                    style={{
+                                      width: "32px", height: "32px", display: "flex", alignItems: "center", justifyContent: "center",
+                                      background: "none", border: "none", cursor: "pointer", color: "rgba(10,13,20,.5)",
+                                      transition: "background .15s ease",
+                                    }}
+                                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(10,13,20,.05)")}
+                                    onMouseLeave={e => (e.currentTarget.style.background = "none")}>
+                                    <Minus size={12} />
+                                  </button>
+                                  <span style={{
+                                    width: "36px", textAlign: "center", fontSize: "13px", fontWeight: 700,
+                                    color: "#0a0d14", borderLeft: "1.5px solid rgba(10,13,20,.1)", borderRight: "1.5px solid rgba(10,13,20,.1)",
+                                    height: "32px", display: "flex", alignItems: "center", justifyContent: "center",
+                                  }}>
+                                    {item.quantity}
+                                  </span>
+                                  <button
+                                    onClick={() => {
+                                      if (sizeSelected && item.quantity >= selectedSizeStock) {
+                                        toast.error(`Only ${selectedSizeStock} left in ${sizeSelected}`);
+                                        return;
+                                      }
+                                      updateQuantity(item.product_id, item.quantity + 1);
+                                    }}
+                                    disabled={sizeSelected ? item.quantity >= selectedSizeStock : false}
+                                    style={{
+                                      width: "32px", height: "32px", display: "flex", alignItems: "center", justifyContent: "center",
+                                      background: "none", border: "none", cursor: "pointer", color: "rgba(10,13,20,.5)",
+                                      transition: "background .15s ease",
+                                    }}
+                                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(10,13,20,.05)")}
+                                    onMouseLeave={e => (e.currentTarget.style.background = "none")}>
+                                    <Plus size={12} />
+                                  </button>
+                                </div>
+
+                                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                                  <span style={{ fontSize: "14px", fontWeight: 800, color: "#0a0d14" }}>
+                                    ₱{lineTotal.toLocaleString()}
+                                  </span>
+                                  <button onClick={() => moveToWishlist(item)}
+                                    style={{
+                                      fontSize: "10px", color: "rgba(10,13,20,.4)", fontWeight: 600,
+                                      background: "none", border: "none", cursor: "pointer",
+                                      display: "flex", alignItems: "center", gap: "3px",
+                                      transition: "color .2s ease",
+                                    }}
+                                    onMouseEnter={e => (e.currentTarget.style.color = "#ef4444")}
+                                    onMouseLeave={e => (e.currentTarget.style.color = "rgba(10,13,20,.4)")}>
+                                    <Heart size={11} /> Move to Wishlist
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
 
               {/* Trust badges */}
-              <div className="grid grid-cols-3 gap-3 mt-4">
+              <div className="grid grid-cols-3 gap-3 mt-2">
                 {[
                   { icon: Truck,     label: "Free Shipping", sub: "Orders over ₱2,000" },
                   { icon: RotateCcw, label: "Easy Returns",  sub: "Within 7 days" },
@@ -483,7 +578,6 @@ const CartPage = () => {
               <div className="bg-background rounded-xl border border-border/60 p-5 space-y-4">
                 <h2 className="font-heading text-sm uppercase tracking-wider text-foreground">Order Summary</h2>
 
-                {/* Missing size warning */}
                 {hasMissingSize && (
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
                     <p className="text-xs text-amber-800 flex items-center gap-2">
@@ -492,6 +586,36 @@ const CartPage = () => {
                     </p>
                   </div>
                 )}
+
+                {/* Item-by-item breakdown */}
+                <div style={{ borderBottom: "1px solid rgba(10,13,20,.08)", paddingBottom: "12px", marginBottom: "4px" }}>
+                  {cartItems.map(item => (
+                    <div key={item.id} style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px", gap: "8px" }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: "11px", fontWeight: 600, color: "#0a0d14", lineHeight: 1.35 }} className="truncate">
+                          {item.product?.name}
+                        </p>
+                        <div style={{ display: "flex", gap: "5px", marginTop: "2px", flexWrap: "wrap" }}>
+                          {(variants[item.id]?.selectedSize ?? item.selected_size) && (
+                            <span style={{
+                              fontSize: "9px", fontWeight: 700, padding: "1px 5px", borderRadius: "3px",
+                              background: "rgba(26,86,219,.08)", color: "#1a56db", border: "1px solid rgba(26,86,219,.12)",
+                              textTransform: "uppercase",
+                            }}>
+                              {variants[item.id]?.selectedSize ?? item.selected_size}
+                            </span>
+                          )}
+                          <span style={{ fontSize: "10px", color: "rgba(10,13,20,.4)", fontWeight: 500 }}>
+                            × {item.quantity}
+                          </span>
+                        </div>
+                      </div>
+                      <span style={{ fontSize: "12px", fontWeight: 700, color: "#0a0d14", flexShrink: 0 }}>
+                        ₱{((item.product?.price ?? 0) * item.quantity).toLocaleString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
 
                 <div className="space-y-2.5 text-sm">
                   <div className="flex justify-between text-muted-foreground">

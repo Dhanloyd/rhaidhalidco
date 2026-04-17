@@ -46,7 +46,7 @@ interface CartContextType {
   loading: boolean;
   addToCart: (productId: string, quantity?: number, variants?: VariantOptions) => Promise<void>;
   updateQuantity: (productId: string, quantity: number, variants?: VariantOptions) => Promise<void>;
-  removeFromCart: (productId: string) => Promise<void>;
+removeFromCart: (itemId: string) => Promise<void>;
   clearCart: () => Promise<void>;
   totalItems: number;
   totalPrice: number;
@@ -121,47 +121,55 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     setLoading(false);
   };
 
-  // ── addToCart ──────────────────────────────────────────────────────────────
-  const addToCart = async (
-    productId: string,
-    quantity = 1,
-    variants?: VariantOptions
-  ) => {
-    if (!user) {
-      toast.error("Please sign in to add items to cart");
-      return;
-    }
+ const addToCart = async (
+  productId: string,
+  quantity = 1,
+  variants?: VariantOptions
+) => {
+  if (!user) {
+    toast.error("Please sign in to add items to cart");
+    return;
+  }
 
-    // If same product AND same size already in cart → bump quantity
-    const existing = items.find(
-      (i) =>
-        i.product_id === productId &&
-        (variants?.selected_size
-          ? i.selected_size === variants.selected_size
-          : true)
-    );
+  // Only match if BOTH product AND size are exactly the same
+  const existing = items.find(
+    (i) =>
+      i.product_id === productId &&
+      (i.selected_size ?? null) === (variants?.selected_size ?? null)
+  );
 
-    if (existing) {
-      await updateQuantity(productId, existing.quantity + quantity, variants);
-      return;
-    }
-
-    const payload: any = {
-      user_id: user.id,
-      product_id: productId,
-      quantity,
-    };
-    if (variants?.selected_size)  payload.selected_size  = variants.selected_size;
-    if (variants?.selected_color) payload.selected_color = variants.selected_color;
-
-    const { error } = await supabase.from("cart_items").insert(payload);
-    if (error) toast.error("Failed to add to cart");
+  if (existing) {
+    // Same product + same size → just bump the quantity
+    const { error } = await supabase
+      .from("cart_items")
+      .update({ quantity: existing.quantity + quantity })
+      .eq("id", existing.id); // use row id, not product_id
+    if (error) toast.error("Failed to update cart");
     else {
-      toast.success("Added to cart!");
+      toast.success("Cart updated!");
       fetchCart();
     }
-  };
+    return;
+  }
 
+  // Different product OR different size → always INSERT a new row
+  const payload: any = {
+    user_id: user.id,
+    product_id: productId,
+    quantity,
+  };
+  if (variants?.selected_size)  payload.selected_size  = variants.selected_size;
+  if (variants?.selected_color) payload.selected_color = variants.selected_color;
+
+  const { error } = await supabase.from("cart_items").insert(payload);
+  if (error) {
+    console.error("INSERT ERROR:", error);
+    toast.error("Failed to add to cart");
+  } else {
+    toast.success("Added to cart!");
+    fetchCart();
+  }
+};
   // ── updateQuantity ─────────────────────────────────────────────────────────
   const updateQuantity = async (
     productId: string,
@@ -189,16 +197,15 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // ── removeFromCart ─────────────────────────────────────────────────────────
-  const removeFromCart = async (productId: string) => {
-    if (!user) return;
-    const { error } = await supabase
-      .from("cart_items")
-      .delete()
-      .eq("user_id", user.id)
-      .eq("product_id", productId);
-    if (error) toast.error("Failed to remove item");
-    else fetchCart();
-  };
+  const removeFromCart = async (itemId: string) => {
+  if (!user) return;
+  const { error } = await supabase
+    .from("cart_items")
+    .delete()
+    .eq("id", itemId);        // ← use row id, not product_id
+  if (error) toast.error("Failed to remove item");
+  else fetchCart();
+};
 
   // ── clearCart ──────────────────────────────────────────────────────────────
   const clearCart = async () => {
