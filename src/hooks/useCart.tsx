@@ -3,8 +3,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 export interface SizeStock {
   size: string;
   stock: number;
@@ -30,9 +28,9 @@ export interface CartItem {
     image_url: string | null;
     category: string;
     colors?: ProductColor[];
-    available_sizes?: string[];           // simple list e.g. ["S","M","L"]
-    size_inventory?: SizeStock[];         // per-size stock e.g. [{size:"S",stock:3}]
-    out_of_stock_sizes?: string[];        // derived: sizes with stock=0
+    available_sizes?: string[];
+    size_inventory?: SizeStock[];
+    out_of_stock_sizes?: string[];
   };
 }
 
@@ -45,16 +43,14 @@ interface CartContextType {
   items: CartItem[];
   loading: boolean;
   addToCart: (productId: string, quantity?: number, variants?: VariantOptions) => Promise<void>;
-  updateQuantity: (productId: string, quantity: number, variants?: VariantOptions) => Promise<void>;
-removeFromCart: (itemId: string) => Promise<void>;
+  updateQuantity: (itemId: string, quantity: number) => Promise<void>;
+  removeFromCart: (itemId: string) => Promise<void>;
   clearCart: () => Promise<void>;
   totalItems: number;
   totalPrice: number;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
-
-// ─── Provider ────────────────────────────────────────────────────────────────
 
 export const CartProvider = ({ children }: { children: ReactNode }) => {
   const [items, setItems] = useState<CartItem[]>([]);
@@ -70,7 +66,6 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     if (!user) return;
     setLoading(true);
 
-    // Fetch cart items including new variant columns and expanded product fields
     const { data, error } = await supabase
       .from("cart_items")
       .select(`
@@ -95,8 +90,6 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
     const mapped: CartItem[] = (data || []).map((item: any) => {
       const prod = item.products;
-
-      // Derive out_of_stock_sizes from size_inventory
       const sizeInventory: SizeStock[] = prod?.size_inventory ?? [];
       const outOfStockSizes = sizeInventory
         .filter((s) => s.stock <= 0)
@@ -109,10 +102,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         selected_size: item.selected_size ?? null,
         selected_color: item.selected_color ?? null,
         product: prod
-          ? {
-              ...prod,
-              out_of_stock_sizes: outOfStockSizes,
-            }
+          ? { ...prod, out_of_stock_sizes: outOfStockSizes }
           : undefined,
       };
     });
@@ -121,93 +111,90 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     setLoading(false);
   };
 
- const addToCart = async (
-  productId: string,
-  quantity = 1,
-  variants?: VariantOptions
-) => {
-  if (!user) {
-    toast.error("Please sign in to add items to cart");
-    return;
-  }
-
-  // Only match if BOTH product AND size are exactly the same
-  const existing = items.find(
-    (i) =>
-      i.product_id === productId &&
-      (i.selected_size ?? null) === (variants?.selected_size ?? null)
-  );
-
-  if (existing) {
-    // Same product + same size → just bump the quantity
-    const { error } = await supabase
-      .from("cart_items")
-      .update({ quantity: existing.quantity + quantity })
-      .eq("id", existing.id); // use row id, not product_id
-    if (error) toast.error("Failed to update cart");
-    else {
-      toast.success("Cart updated!");
-      fetchCart();
-    }
-    return;
-  }
-
-  // Different product OR different size → always INSERT a new row
-  const payload: any = {
-    user_id: user.id,
-    product_id: productId,
-    quantity,
-  };
-  if (variants?.selected_size)  payload.selected_size  = variants.selected_size;
-  if (variants?.selected_color) payload.selected_color = variants.selected_color;
-
-  const { error } = await supabase.from("cart_items").insert(payload);
-  if (error) {
-    console.error("INSERT ERROR:", error);
-    toast.error("Failed to add to cart");
-  } else {
-    toast.success("Added to cart!");
-    fetchCart();
-  }
-};
-  // ── updateQuantity ─────────────────────────────────────────────────────────
-  const updateQuantity = async (
+  const addToCart = async (
     productId: string,
-    quantity: number,
+    quantity = 1,
     variants?: VariantOptions
   ) => {
-    if (!user) return;
-    if (quantity <= 0) {
-      await removeFromCart(productId);
+    if (!user) {
+      toast.error("Please sign in to add items to cart");
       return;
     }
 
-    const updatePayload: any = { quantity };
-    if (variants?.selected_size  !== undefined) updatePayload.selected_size  = variants.selected_size;
-    if (variants?.selected_color !== undefined) updatePayload.selected_color = variants.selected_color;
+    const selectedSize = variants?.selected_size ?? null;
+    const selectedColor = variants?.selected_color ?? null;
+
+    // Use local state to check for existing item (avoids race condition)
+    const existing = items.find(
+      (i) =>
+        i.product_id === productId &&
+        (i.selected_size ?? null) === selectedSize &&
+        (i.selected_color ?? null) === selectedColor
+    );
+
+    if (existing) {
+      const { error } = await supabase
+        .from("cart_items")
+        .update({ quantity: existing.quantity + quantity })
+        .eq("id", existing.id);
+
+      if (error) {
+        console.error("UPDATE ERROR:", error);
+        toast.error("Failed to update cart");
+      } else {
+        toast.success("Cart updated!");
+        await fetchCart();
+      }
+      return;
+    }
+
+    // New combination — insert a new row
+    const payload: any = {
+      user_id: user.id,
+      product_id: productId,
+      quantity,
+    };
+
+    if (selectedSize !== null) payload.selected_size = selectedSize;
+    if (selectedColor !== null) payload.selected_color = selectedColor;
+
+    const { error } = await supabase.from("cart_items").insert(payload);
+    if (error) {
+      console.error("INSERT ERROR:", error);
+      toast.error("Failed to add to cart");
+    } else {
+      toast.success("Added to cart!");
+      await fetchCart();
+    }
+  };
+
+  const updateQuantity = async (itemId: string, quantity: number) => {
+    if (!user) return;
+    if (quantity <= 0) {
+      await removeFromCart(itemId);
+      return;
+    }
 
     const { error } = await supabase
       .from("cart_items")
-      .update(updatePayload)
-      .eq("user_id", user.id)
-      .eq("product_id", productId);
+      .update({ quantity })
+      .eq("id", itemId);
 
     if (error) toast.error("Failed to update cart");
-    else fetchCart();
+    else await fetchCart();
   };
 
-  // ── removeFromCart ─────────────────────────────────────────────────────────
   const removeFromCart = async (itemId: string) => {
-  if (!user) return;
-  const { error } = await supabase
-    .from("cart_items")
-    .delete()
-    .eq("id", itemId);        // ← use row id, not product_id
-  if (error) toast.error("Failed to remove item");
-  else fetchCart();
-};
+    if (!user) return;
+    const { error } = await supabase
+      .from("cart_items")
+      .delete()
+      .eq("id", itemId);
 
-  // ── clearCart ──────────────────────────────────────────────────────────────
+    if (error) toast.error("Failed to remove item");
+    else await fetchCart();
+  };
+
   const clearCart = async () => {
     if (!user) return;
     await supabase.from("cart_items").delete().eq("user_id", user.id);

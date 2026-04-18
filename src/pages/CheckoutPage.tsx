@@ -1,6 +1,3 @@
-// ═══════════════════════════════════════════════
-// CheckoutPage.tsx  —  Zalora-style receipt
-// ═══════════════════════════════════════════════
 import { useState, useEffect } from "react";
 import { useCart } from "@/hooks/useCart";
 import { useAuth } from "@/hooks/useAuth";
@@ -13,31 +10,16 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   ShoppingCart, MapPin, CreditCard, CheckCircle,
   ChevronRight, ChevronLeft, ExternalLink, Loader2,
-  Package, Truck, RotateCcw, Shield, Phone, Mail,
 } from "lucide-react";
+import logo from "@/assets/logo.png"; // ← your logo
 
 const steps = ["Shipping", "Review", "Payment", "Confirmation"];
+const VERCEL_API = "https://rhaidhalidco-buy3.vercel.app/api/create-paymongo-checkout";
 
-const VERCEL_API = "https://rhaidhalidco.vercel.app/api/create-paymongo-checkout";
-
-// ── Zalora-style Order Confirmation Receipt ─────────────────────────────────
-
-// ══════════════════════════════════════════════════════════
-// REPLACEMENT: ZaloraReceipt component for CheckoutPage.tsx
-// Matches the POS receipt style exactly
-// ══════════════════════════════════════════════════════════
-
+// ── Zalora-style Receipt ────────────────────────────────────────────────────
 const ZaloraReceipt = ({
-  orderId,
-  items,
-  shipping,
-  subtotal,
-  discount,
-  shippingFee,
-  grandTotal,
-  paymentMethod,
-  userEmail,
-  appliedVoucher,
+  orderId, items, shipping, subtotal, discount,
+  shippingFee, grandTotal, paymentMethod, userEmail, appliedVoucher,
 }: {
   orderId: string;
   items: any[];
@@ -50,15 +32,13 @@ const ZaloraReceipt = ({
   userEmail: string;
   appliedVoucher: any;
 }) => {
-  const orderDate = new Date().toLocaleDateString("en-PH", {
-    year: "numeric", month: "long", day: "numeric",
-  });
+  const orderDate = new Date().toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" });
   const shortId = orderId?.slice(0, 8).toUpperCase();
-
-  // VAT computation
   const vatRate = 0.12;
   const vatableSales = grandTotal / (1 + vatRate);
   const vatAmount = grandTotal - vatableSales;
+  const totalQty = items.reduce((sum: number, item: any) => sum + (item.quantity ?? 1), 0);
+  const totalStyles = items.length;
 
   const pmLabels: Record<string, string> = {
     cod: "Cash on Delivery",
@@ -66,17 +46,13 @@ const ZaloraReceipt = ({
     card: "Credit / Debit Card",
   };
 
-  const fmt = (n: number) =>
-    n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  // Helper: build size label for a line item (mirrors POS getSizeLabel)
   const getSizeLabel = (item: any): string => {
     const waist = item.selected_waist ?? item.waist ?? null;
     const length = item.selected_length ?? item.length ?? null;
     if (waist && length) return `W${waist}/L${length}`;
-    const size = item.selected_size ?? item.size ?? null;
-    if (size) return size;
-    return "";
+    return item.selected_size ?? item.size ?? "";
   };
 
   const isBottomItem = (item: any): boolean => {
@@ -88,47 +64,58 @@ const ZaloraReceipt = ({
   return (
     <div style={{ fontFamily: "'Outfit', system-ui, sans-serif" }}>
 
-      {/* ── Header band (matches POS) ── */}
+      {/* ── Header with LOGO ── */}
       <div style={{
         background: "linear-gradient(135deg, #060b18 0%, #0f1f3d 100%)",
         padding: "24px 20px 20px",
         textAlign: "center",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: "10px",
       }}>
-        <p style={{
-          fontFamily: "'Bebas Neue', sans-serif",
-          fontSize: "1.4rem", letterSpacing: ".08em",
-          color: "#fff", marginBottom: "4px",
-        }}>
-          RaidKhalid & Co.
-        </p>
-        <p style={{ fontSize: "11px", color: "rgba(255,255,255,.45)", marginBottom: "2px" }}>
-          Online Order Confirmation
-        </p>
-        <p style={{ fontSize: "10px", color: "rgba(255,255,255,.3)" }}>
-          {userEmail}
-        </p>
+        {/* Logo image */}
+        <img
+          src={logo}
+          alt="RaidKhalid & Co."
+          style={{
+            width: "64px",
+            height: "64px",
+            objectFit: "contain",
+            borderRadius: "12px",
+            border: "2px solid rgba(255,255,255,0.15)",
+          }}
+          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+        />
+        <div>
+          <p style={{
+            fontFamily: "'Bebas Neue', sans-serif",
+            fontSize: "1.4rem", letterSpacing: ".08em",
+            color: "#fff", marginBottom: "4px",
+          }}>
+            RaidKhalid & Co.
+          </p>
+          <p style={{ fontSize: "11px", color: "rgba(255,255,255,.45)", marginBottom: "2px" }}>
+            Online Order Confirmation
+          </p>
+          <p style={{ fontSize: "10px", color: "rgba(255,255,255,.3)" }}>{userEmail}</p>
+        </div>
       </div>
 
-      {/* ── Order meta (2×2 grid like POS receipt meta) ── */}
-      <div style={{
-        display: "grid", gridTemplateColumns: "1fr 1fr",
-        borderBottom: "1px solid rgba(10,13,20,.08)",
-      }}>
+      {/* ── Order meta ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", borderBottom: "1px solid rgba(10,13,20,.08)" }}>
         {[
-          { label: "Order #",   value: `#${shortId}` },
-          { label: "Date",      value: orderDate },
-          { label: "Customer",  value: shipping.full_name },
-          { label: "Payment",   value: pmLabels[paymentMethod] ?? paymentMethod },
+          { label: "Order #",  value: `#${shortId}` },
+          { label: "Date",     value: orderDate },
+          { label: "Customer", value: shipping.full_name },
+          { label: "Payment",  value: pmLabels[paymentMethod] ?? paymentMethod },
         ].map((m, i) => (
           <div key={i} style={{
             padding: "10px 16px",
             borderBottom: i < 2 ? "1px solid rgba(10,13,20,.06)" : "none",
             borderRight: i % 2 === 0 ? "1px solid rgba(10,13,20,.06)" : "none",
           }}>
-            <p style={{
-              fontSize: "9px", fontWeight: 800, letterSpacing: ".16em",
-              textTransform: "uppercase", color: "rgba(10,13,20,.35)", marginBottom: "2px",
-            }}>
+            <p style={{ fontSize: "9px", fontWeight: 800, letterSpacing: ".16em", textTransform: "uppercase", color: "rgba(10,13,20,.35)", marginBottom: "2px" }}>
               {m.label}
             </p>
             <p style={{ fontSize: "12px", fontWeight: 700, color: "#0a0d14" }}>{m.value}</p>
@@ -138,26 +125,21 @@ const ZaloraReceipt = ({
 
       {/* ── Items table ── */}
       <div style={{ padding: "16px 16px 0" }}>
-        <p style={{
-          fontSize: "9px", fontWeight: 800, letterSpacing: ".16em",
-          textTransform: "uppercase", color: "rgba(10,13,20,.35)", marginBottom: "8px",
-        }}>
-          Items
+        <p style={{ fontSize: "9px", fontWeight: 800, letterSpacing: ".16em", textTransform: "uppercase", color: "rgba(10,13,20,.35)", marginBottom: "8px" }}>
+          Items Ordered
         </p>
 
         {/* Column headers */}
         <div style={{
-          display: "grid", gridTemplateColumns: "1fr 52px 52px 64px",
+          display: "grid", gridTemplateColumns: "1fr 60px 44px 64px",
           padding: "6px 8px", background: "rgba(10,13,20,.04)", borderRadius: "5px", marginBottom: "4px",
         }}>
-          {["Item", "Size", "Qty", "Amount"].map(h => (
+          {["Item", "Size / Color", "Qty", "Amount"].map(h => (
             <span key={h} style={{
               fontSize: "9px", fontWeight: 700, textTransform: "uppercase",
               letterSpacing: ".1em", color: "rgba(10,13,20,.4)",
               textAlign: h !== "Item" ? "center" : "left",
-            }}>
-              {h}
-            </span>
+            }}>{h}</span>
           ))}
         </div>
 
@@ -168,12 +150,13 @@ const ZaloraReceipt = ({
           const waist      = item.selected_waist ?? item.waist ?? null;
           const length     = item.selected_length ?? item.length ?? null;
           const color      = item.selected_color ?? item.color ?? null;
+          const colorHex   = item.selected_color_hex ?? null;
           const unitPrice  = item.price ?? item.product?.price ?? 0;
           const qty        = item.quantity ?? 1;
 
           return (
             <div key={i} style={{
-              display: "grid", gridTemplateColumns: "1fr 52px 52px 64px",
+              display: "grid", gridTemplateColumns: "1fr 60px 44px 64px",
               padding: "8px 8px", alignItems: "center",
               borderBottom: i < items.length - 1 ? "1px solid rgba(10,13,20,.05)" : "none",
             }}>
@@ -182,22 +165,18 @@ const ZaloraReceipt = ({
                 <p style={{ fontSize: "11px", fontWeight: 600, color: "#0a0d14", lineHeight: 1.3 }}>
                   {item.name ?? item.product?.name}
                 </p>
-                {color && (
-                  <p style={{ fontSize: "9px", color: "rgba(10,13,20,.4)", marginTop: "1px" }}>{color}</p>
-                )}
                 <p style={{ fontSize: "10px", color: "rgba(10,13,20,.4)", marginTop: "1px" }}>
                   @ ₱{fmt(unitPrice)}
                 </p>
               </div>
 
-              {/* Size — same style as POS */}
+              {/* Size + Color combined column */}
               <div style={{ textAlign: "center" }}>
                 {isBottom ? (
                   <span style={{
                     display: "inline-block", fontSize: "9px", fontWeight: 800,
                     padding: "2px 4px", borderRadius: "3px",
-                    background: "rgba(26,86,219,.08)", color: "#1a56db",
-                    fontFamily: "monospace",
+                    background: "rgba(26,86,219,.08)", color: "#1a56db", fontFamily: "monospace",
                   }}>
                     W{waist}<br />L{length}
                   </span>
@@ -205,20 +184,35 @@ const ZaloraReceipt = ({
                   <span style={{
                     display: "inline-block", fontSize: "10px", fontWeight: 700,
                     padding: "2px 6px", borderRadius: "3px",
-                    background: "rgba(10,13,20,.06)", color: "#0a0d14",
-                    textTransform: "uppercase",
+                    background: "rgba(10,13,20,.06)", color: "#0a0d14", textTransform: "uppercase",
                   }}>
                     {sizeLabel}
                   </span>
-                ) : (
+                ) : null}
+
+                {/* Color badge in receipt */}
+                {color && (
+                  <div style={{ marginTop: "4px", display: "flex", alignItems: "center", justifyContent: "center", gap: "3px" }}>
+                    {colorHex && (
+                      <span style={{
+                        width: "8px", height: "8px", borderRadius: "50%",
+                        background: colorHex, border: "1px solid rgba(10,13,20,.2)",
+                        flexShrink: 0, display: "inline-block",
+                      }} />
+                    )}
+                    <span style={{ fontSize: "9px", fontWeight: 600, color: "rgba(10,13,20,.5)" }}>
+                      {color}
+                    </span>
+                  </div>
+                )}
+
+                {!sizeLabel && !color && (
                   <span style={{ fontSize: "10px", color: "rgba(10,13,20,.3)" }}>—</span>
                 )}
               </div>
 
               {/* Qty */}
-              <div style={{ textAlign: "center", fontSize: "12px", fontWeight: 700, color: "#0a0d14" }}>
-                ×{qty}
-              </div>
+              <div style={{ textAlign: "center", fontSize: "12px", fontWeight: 700, color: "#0a0d14" }}>×{qty}</div>
 
               {/* Amount */}
               <div style={{ textAlign: "right", fontSize: "12px", fontWeight: 800, color: "#0a0d14" }}>
@@ -229,49 +223,46 @@ const ZaloraReceipt = ({
         })}
       </div>
 
+      {/* ── Order summary bar ── */}
+      <div style={{
+        margin: "10px 16px 0", padding: "10px 12px",
+        background: "rgba(10,13,20,.03)", borderRadius: "8px",
+        border: "1px solid rgba(10,13,20,.07)",
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+      }}>
+        <div style={{ display: "flex", gap: "20px" }}>
+          <div>
+            <p style={{ fontSize: "9px", letterSpacing: ".12em", textTransform: "uppercase", color: "rgba(10,13,20,.35)", marginBottom: "2px" }}>Total Items</p>
+            <p style={{ fontSize: "15px", fontWeight: 800, color: "#0a0d14", margin: 0 }}>{totalStyles} style{totalStyles !== 1 ? "s" : ""}</p>
+          </div>
+          <div>
+            <p style={{ fontSize: "9px", letterSpacing: ".12em", textTransform: "uppercase", color: "rgba(10,13,20,.35)", marginBottom: "2px" }}>Total Qty</p>
+            <p style={{ fontSize: "15px", fontWeight: 800, color: "#0a0d14", margin: 0 }}>{totalQty} pc{totalQty !== 1 ? "s" : ""}</p>
+          </div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <p style={{ fontSize: "9px", letterSpacing: ".12em", textTransform: "uppercase", color: "rgba(10,13,20,.35)", marginBottom: "2px" }}>Total Amount</p>
+          <p style={{ fontSize: "18px", fontWeight: 800, color: "#0a0d14", margin: 0 }}>₱{fmt(grandTotal)}</p>
+        </div>
+      </div>
+
       {/* ── Totals block ── */}
       <div style={{ padding: "12px 16px 0" }}>
-        <div style={{
-          background: "rgba(10,13,20,.02)", borderRadius: "8px",
-          border: "1px solid rgba(10,13,20,.07)", overflow: "hidden",
-        }}>
+        <div style={{ background: "rgba(10,13,20,.02)", borderRadius: "8px", border: "1px solid rgba(10,13,20,.07)", overflow: "hidden" }}>
           {[
-            { label: `Subtotal (${items.length} item${items.length !== 1 ? "s" : ""})`, value: `₱${fmt(subtotal)}` },
-            ...(discount > 0 ? [{
-              label: `Voucher${appliedVoucher?.code ? ` (${appliedVoucher.code})` : ""}`,
-              value: `-₱${fmt(discount)}`, green: true,
-            }] : []),
-            {
-              label: "Shipping Fee",
-              value: shippingFee === 0 ? "FREE" : `₱${fmt(shippingFee)}`,
-              green: shippingFee === 0,
-            },
+            { label: `Subtotal (${totalQty} pc${totalQty !== 1 ? "s" : ""} · ${totalStyles} style${totalStyles !== 1 ? "s" : ""})`, value: `₱${fmt(subtotal)}` },
+            ...(discount > 0 ? [{ label: `Voucher${appliedVoucher?.code ? ` (${appliedVoucher.code})` : ""}`, value: `-₱${fmt(discount)}`, green: true }] : []),
+            { label: "Shipping Fee", value: shippingFee === 0 ? "FREE" : `₱${fmt(shippingFee)}`, green: shippingFee === 0 },
           ].map((row, i) => (
-            <div key={i} style={{
-              display: "flex", justifyContent: "space-between",
-              padding: "8px 12px", borderBottom: "1px solid rgba(10,13,20,.05)",
-            }}>
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", borderBottom: "1px solid rgba(10,13,20,.05)" }}>
               <span style={{ fontSize: "11px", color: "rgba(10,13,20,.5)" }}>{row.label}</span>
-              <span style={{
-                fontSize: "11px", fontWeight: 700,
-                color: (row as any).green ? "#16a34a" : "#0a0d14",
-              }}>
-                {row.value}
-              </span>
+              <span style={{ fontSize: "11px", fontWeight: 700, color: (row as any).green ? "#16a34a" : "#0a0d14" }}>{row.value}</span>
             </div>
           ))}
 
-          {/* VAT Summary — identical to POS */}
-          <div style={{
-            padding: "8px 12px", background: "rgba(10,13,20,.015)",
-            borderBottom: "1px solid rgba(10,13,20,.05)",
-          }}>
-            <p style={{
-              fontSize: "9px", fontWeight: 800, letterSpacing: ".14em",
-              textTransform: "uppercase", color: "rgba(10,13,20,.35)", marginBottom: "5px",
-            }}>
-              VAT Summary (12%)
-            </p>
+          {/* VAT */}
+          <div style={{ padding: "8px 12px", background: "rgba(10,13,20,.015)", borderBottom: "1px solid rgba(10,13,20,.05)" }}>
+            <p style={{ fontSize: "9px", fontWeight: 800, letterSpacing: ".14em", textTransform: "uppercase", color: "rgba(10,13,20,.35)", marginBottom: "5px" }}>VAT Summary (12%)</p>
             {[
               { label: "VATable Sales (ex-VAT)", value: `₱${vatableSales.toFixed(2)}` },
               { label: "VAT 12%",                value: `₱${vatAmount.toFixed(2)}` },
@@ -285,59 +276,36 @@ const ZaloraReceipt = ({
             ))}
           </div>
 
-          {/* Grand total — dark bar like POS */}
-          <div style={{
-            display: "flex", justifyContent: "space-between",
-            padding: "12px 12px", background: "#0a0d14",
-          }}>
-            <span style={{
-              fontFamily: "'Bebas Neue', sans-serif", fontSize: "1rem",
-              letterSpacing: ".06em", color: "rgba(255,255,255,.65)",
-            }}>
-              TOTAL (VAT Incl.)
-            </span>
-            <span style={{
-              fontFamily: "'Bebas Neue', sans-serif", fontSize: "1.3rem", color: "#fff",
-            }}>
+          {/* Grand total */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 12px", background: "#0a0d14" }}>
+            <div>
+              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: "1rem", letterSpacing: ".06em", color: "rgba(255,255,255,.65)", display: "block" }}>
+                TOTAL (VAT Incl.)
+              </span>
+              <span style={{ fontSize: "10px", color: "rgba(255,255,255,.3)" }}>
+                {totalQty} pc{totalQty !== 1 ? "s" : ""} · {totalStyles} style{totalStyles !== 1 ? "s" : ""}
+              </span>
+            </div>
+            <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: "1.3rem", color: "#fff" }}>
               ₱{fmt(grandTotal)}
             </span>
           </div>
         </div>
       </div>
 
-      {/* ── Delivery address + info (below totals, like POS cash/change section) ── */}
-      <div style={{
-        display: "grid", gridTemplateColumns: "1fr 1fr",
-        borderTop: "1px solid rgba(10,13,20,.08)", marginTop: "14px",
-      }}>
+      {/* ── Ship To + Delivery ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", borderTop: "1px solid rgba(10,13,20,.08)", marginTop: "14px" }}>
         <div style={{ padding: "14px 16px", borderRight: "1px solid rgba(10,13,20,.08)" }}>
-          <p style={{
-            fontSize: "9px", fontWeight: 800, letterSpacing: ".16em",
-            textTransform: "uppercase", color: "rgba(10,13,20,.35)", marginBottom: "8px",
-          }}>
-            Ship To
-          </p>
-          <p style={{ fontSize: "12px", fontWeight: 700, color: "#0a0d14", marginBottom: "2px" }}>
-            {shipping.full_name}
-          </p>
-          <p style={{ fontSize: "11px", color: "rgba(10,13,20,.5)", marginBottom: "1px" }}>
-            {shipping.phone}
-          </p>
+          <p style={{ fontSize: "9px", fontWeight: 800, letterSpacing: ".16em", textTransform: "uppercase", color: "rgba(10,13,20,.35)", marginBottom: "8px" }}>Ship To</p>
+          <p style={{ fontSize: "12px", fontWeight: 700, color: "#0a0d14", marginBottom: "2px" }}>{shipping.full_name}</p>
+          <p style={{ fontSize: "11px", color: "rgba(10,13,20,.5)", marginBottom: "1px" }}>{shipping.phone}</p>
           <p style={{ fontSize: "11px", color: "rgba(10,13,20,.5)", lineHeight: 1.5 }}>
             {shipping.address_line}<br />
-            {shipping.city}
-            {shipping.province ? `, ${shipping.province}` : ""}
-            {shipping.zip_code ? ` ${shipping.zip_code}` : ""}
+            {shipping.city}{shipping.province ? `, ${shipping.province}` : ""}{shipping.zip_code ? ` ${shipping.zip_code}` : ""}
           </p>
         </div>
-
         <div style={{ padding: "14px 16px" }}>
-          <p style={{
-            fontSize: "9px", fontWeight: 800, letterSpacing: ".16em",
-            textTransform: "uppercase", color: "rgba(10,13,20,.35)", marginBottom: "8px",
-          }}>
-            Delivery Info
-          </p>
+          <p style={{ fontSize: "9px", fontWeight: 800, letterSpacing: ".16em", textTransform: "uppercase", color: "rgba(10,13,20,.35)", marginBottom: "8px" }}>Delivery Info</p>
           {[
             { icon: "📦", label: "Processing", value: "1–2 business days" },
             { icon: "🚚", label: "Shipping",   value: "3–7 business days" },
@@ -354,26 +322,18 @@ const ZaloraReceipt = ({
         </div>
       </div>
 
-      {/* ── Footer note (matches POS) ── */}
-      <div style={{
-        padding: "14px 16px", textAlign: "center",
-        borderTop: "1px solid rgba(10,13,20,.06)",
-      }}>
+      {/* ── Footer ── */}
+      <div style={{ padding: "14px 16px", textAlign: "center", borderTop: "1px solid rgba(10,13,20,.06)" }}>
         <p style={{ fontSize: "10px", color: "rgba(10,13,20,.35)", lineHeight: 1.6 }}>
           Thank you for your purchase!<br />
-          <strong style={{ color: "rgba(10,13,20,.5)" }}>
-            This is your official order confirmation.
-          </strong>
+          <strong style={{ color: "rgba(10,13,20,.5)" }}>This is your official order confirmation.</strong>
         </p>
       </div>
     </div>
   );
 };
 
-
-
 // ─── Checkout Page ──────────────────────────────────────────────────────────
-
 const CheckoutPage = () => {
   const { items, totalPrice, clearCart } = useCart();
   const { user } = useAuth();
@@ -386,6 +346,8 @@ const CheckoutPage = () => {
   const [voucherCode, setVoucherCode] = useState("");
   const [appliedVoucher, setAppliedVoucher] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState("cod");
+  const [confirmedItems, setConfirmedItems] = useState<any[]>([]);
+  const [capturedTotals, setCapturedTotals] = useState({ subtotal: 0, discount: 0, shippingFee: 0, grandTotal: 0 });
 
   const [shipping, setShipping] = useState({
     full_name: "", phone: "", address_line: "", city: "", province: "", zip_code: "",
@@ -470,16 +432,22 @@ const CheckoutPage = () => {
   };
 
   const createOrder = async () => {
+    const orderItemsPayload = items.map((i) => ({
+      id: i.product_id,
+      name: i.product?.name,
+      price: i.product?.price,
+      quantity: i.quantity,
+      selected_size: i.selected_size ?? null,
+      selected_color: i.selected_color ?? null,
+      // store hex for receipt
+      selected_color_hex: i.product?.colors?.find((c: any) => c.name === i.selected_color)?.hex ?? null,
+    }));
+
     const { data, error } = await supabase.from("orders").insert({
       user_id: user.id,
       customer_name: shipping.full_name,
       customer_email: user.email,
-      items: items.map((i) => ({
-        id: i.product_id, name: i.product?.name,
-        price: i.product?.price, quantity: i.quantity,
-        selected_size: i.selected_size ?? null,
-        selected_color: i.selected_color ?? null,
-      })),
+      items: orderItemsPayload,
       total: grandTotal,
       subtotal: totalPrice,
       discount,
@@ -514,6 +482,10 @@ const CheckoutPage = () => {
         .eq("id", appliedVoucher.id);
     }
 
+    // Save items for receipt before cart is cleared
+    setConfirmedItems(orderItemsPayload);
+    // Capture totals BEFORE cart is cleared
+    setCapturedTotals({ subtotal: totalPrice, discount, shippingFee, grandTotal });
     return data.id;
   };
 
@@ -523,16 +495,17 @@ const CheckoutPage = () => {
     try {
       newOrderId = await createOrder();
       setOrderId(newOrderId);
-      const siteUrl = window.location.origin;
       const response = await fetch(VERCEL_API, {
         method: "POST", mode: "cors",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           amount: grandTotal, orderId: newOrderId,
-          customerName: shipping.full_name, customerEmail: user.email, siteUrl,
+          customerName: shipping.full_name, customerEmail: user.email,
+          siteUrl: window.location.origin,
           items: items.map((i) => ({
             name: i.product?.name || "Item",
-            price: i.product?.price || 0, quantity: i.quantity,
+            price: i.product?.price || 0,
+            quantity: i.quantity,
           })),
         }),
       });
@@ -564,15 +537,21 @@ const CheckoutPage = () => {
     }
   };
 
+  // Use captured totals if available (after cart is cleared), otherwise use live values
+  const displaySubtotal = capturedTotals.subtotal || totalPrice;
+  const displayDiscount = capturedTotals.discount || discount;
+  const displayShippingFee = capturedTotals.shippingFee || shippingFee;
+  const displayGrandTotal = capturedTotals.grandTotal || grandTotal;
+
   const handlePlaceOrder = () => {
     if (paymentMethod === "cod") handleCOD();
     else handlePayMongoCheckout();
   };
 
   const paymentMethods = [
-    { id: "cod", label: "Cash on Delivery", icon: "💵", desc: "Pay when your order arrives" },
-    { id: "gcash", label: "GCash / GrabPay", icon: "📱", desc: "Pay via GCash — you'll be redirected to a secure payment page" },
-    { id: "card", label: "Credit / Debit Card", icon: "💳", desc: "Visa, Mastercard — secure checkout via PayMongo" },
+    { id: "cod",   label: "Cash on Delivery",     icon: "💵", desc: "Pay when your order arrives" },
+    { id: "gcash", label: "GCash / GrabPay",       icon: "📱", desc: "Pay via GCash — you'll be redirected to a secure payment page" },
+    { id: "card",  label: "Credit / Debit Card",   icon: "💳", desc: "Visa, Mastercard — secure checkout via PayMongo" },
   ];
 
   return (
@@ -655,8 +634,8 @@ const CheckoutPage = () => {
                 </CardContent>
               </Card>
             </div>
-            <OrderSummary items={items} subtotal={totalPrice} discount={discount} shippingFee={shippingFee}
-              grandTotal={grandTotal} voucherCode={voucherCode} setVoucherCode={setVoucherCode}
+            <OrderSummary items={items} subtotal={displaySubtotal} discount={displayDiscount} shippingFee={displayShippingFee}
+              grandTotal={displayGrandTotal} voucherCode={voucherCode} setVoucherCode={setVoucherCode}
               applyVoucher={applyVoucher} appliedVoucher={appliedVoucher} />
           </div>
         )}
@@ -687,9 +666,17 @@ const CheckoutPage = () => {
                           )}
                           {item.selected_color && (
                             <span style={{
+                              display: "inline-flex", alignItems: "center", gap: "4px",
                               fontSize: "10px", fontWeight: 600, padding: "2px 8px", borderRadius: "4px",
                               background: "rgba(10,13,20,.06)", color: "rgba(10,13,20,.6)", border: "1px solid rgba(10,13,20,.1)",
                             }}>
+                              {item.product?.colors?.find((c: any) => c.name === item.selected_color)?.hex && (
+                                <span style={{
+                                  width: "8px", height: "8px", borderRadius: "50%",
+                                  background: item.product.colors.find((c: any) => c.name === item.selected_color)?.hex,
+                                  border: "1px solid rgba(10,13,20,.2)", flexShrink: 0,
+                                }} />
+                              )}
                               {item.selected_color}
                             </span>
                           )}
@@ -710,7 +697,7 @@ const CheckoutPage = () => {
                 </CardContent>
               </Card>
             </div>
-            <OrderSummary items={items} subtotal={totalPrice} discount={discount} shippingFee={shippingFee} grandTotal={grandTotal} />
+            <OrderSummary items={items} subtotal={displaySubtotal} discount={displayDiscount} shippingFee={displayShippingFee} grandTotal={displayGrandTotal} />
           </div>
         )}
 
@@ -738,19 +725,11 @@ const CheckoutPage = () => {
                       {paymentMethod === pm.id && <CheckCircle size={18} className="ml-auto text-primary shrink-0" />}
                     </button>
                   ))}
-
                   {(paymentMethod === "gcash" || paymentMethod === "card") && (
-                    <div className="mt-2 rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+                    <div className="mt-2 rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-2">
                       <div className="flex items-start gap-3">
                         <ExternalLink size={18} className="text-primary shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-sm font-medium text-foreground">You'll be redirected to a secure payment page</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {paymentMethod === "gcash"
-                              ? "Pay via GCash on PayMongo's secure checkout."
-                              : "Enter your Visa or Mastercard details on PayMongo's secure checkout page."}
-                          </p>
-                        </div>
+                        <p className="text-sm font-medium text-foreground">You'll be redirected to a secure payment page</p>
                       </div>
                       <p className="text-[10px] text-muted-foreground flex items-center gap-1">
                         🔒 Secured by <strong>PayMongo</strong> · BSP-regulated · PCI-DSS compliant
@@ -760,11 +739,11 @@ const CheckoutPage = () => {
                 </CardContent>
               </Card>
             </div>
-            <OrderSummary items={items} subtotal={totalPrice} discount={discount} shippingFee={shippingFee} grandTotal={grandTotal} />
+            <OrderSummary items={items} subtotal={displaySubtotal} discount={displayDiscount} shippingFee={displayShippingFee} grandTotal={displayGrandTotal} />
           </div>
         )}
 
-        {/* ── Step 3: Confirmation — Zalora-style receipt ── */}
+        {/* ── Step 3: Confirmation — Receipt with logo + color ── */}
         {step === 3 && (
           <div className="max-w-2xl mx-auto">
             <div style={{
@@ -774,28 +753,23 @@ const CheckoutPage = () => {
             }}>
               <ZaloraReceipt
                 orderId={orderId}
-                items={items}
+                items={confirmedItems.length > 0 ? confirmedItems : items}
                 shipping={shipping}
-                subtotal={totalPrice}
-                discount={discount}
-                shippingFee={shippingFee}
-                grandTotal={grandTotal}
+                subtotal={displaySubtotal}
+                discount={displayDiscount}
+                shippingFee={displayShippingFee}
+                grandTotal={displayGrandTotal}
                 paymentMethod={paymentMethod}
                 userEmail={user?.email ?? ""}
                 appliedVoucher={appliedVoucher}
               />
             </div>
-
-            <div className="flex justify-center gap-4 mt-6">
+            <div className="flex justify-center gap-4 mt-6 flex-wrap">
               <Link to="/my-orders">
-                <Button className="bg-primary text-primary-foreground font-heading uppercase tracking-wider">
-                  View My Orders
-                </Button>
+                <Button className="bg-primary text-primary-foreground font-heading uppercase tracking-wider">View My Orders</Button>
               </Link>
               <Link to="/shop">
-                <Button variant="outline" className="font-heading uppercase tracking-wider">
-                  Continue Shopping
-                </Button>
+                <Button variant="outline" className="font-heading uppercase tracking-wider">Continue Shopping</Button>
               </Link>
               <Button variant="outline" onClick={() => window.print()} className="font-heading uppercase tracking-wider">
                 🖨️ Print Receipt
@@ -812,7 +786,6 @@ const CheckoutPage = () => {
               className="gap-2 font-heading uppercase tracking-wider">
               <ChevronLeft size={16} /> {step === 0 ? "Back to Cart" : "Back"}
             </Button>
-
             {step < 2 ? (
               <Button
                 onClick={() => { if (step === 0 && !validateShipping()) return; setStep(step + 1); }}
@@ -827,23 +800,14 @@ const CheckoutPage = () => {
                 {processing
                   ? <><Loader2 size={16} className="animate-spin" /> Processing...</>
                   : paymentMethod === "cod"
-                    ? `Place Order · ₱${grandTotal.toLocaleString()}`
-                    : `Pay ₱${grandTotal.toLocaleString()} →`
+                    ? `Place Order · ₱${displayGrandTotal.toLocaleString()}`
+                    : `Pay ₱${displayGrandTotal.toLocaleString()} →`
                 }
               </Button>
             )}
           </div>
         )}
       </div>
-
-      <style>{`
-        @media print {
-          body * { visibility: hidden; }
-          .zalora-receipt-print, .zalora-receipt-print * { visibility: visible; }
-          .zalora-receipt-print { position: fixed; top: 0; left: 0; width: 100%; }
-          button, nav, header { display: none !important; }
-        }
-      `}</style>
     </div>
   );
 };
@@ -855,7 +819,6 @@ const OrderSummary = ({ items, subtotal, discount, shippingFee, grandTotal, vouc
       <CardTitle className="font-heading uppercase tracking-wider text-sm">Order Summary</CardTitle>
     </CardHeader>
     <CardContent className="space-y-3">
-      {/* Items with sizes */}
       <div className="space-y-2 max-h-48 overflow-y-auto">
         {items.map((item: any) => (
           <div key={item.id} className="flex gap-2 items-center">
@@ -864,13 +827,20 @@ const OrderSummary = ({ items, subtotal, discount, shippingFee, grandTotal, vouc
             )}
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-foreground truncate">{item.product?.name}</p>
-              <div className="flex gap-1 mt-0.5 flex-wrap">
+              <div className="flex gap-1 mt-0.5 flex-wrap items-center">
                 {item.selected_size && (
-                  <span style={{
-                    fontSize: "9px", fontWeight: 700, padding: "1px 5px", borderRadius: "3px",
-                    background: "rgba(26,86,219,.1)", color: "#1a56db", textTransform: "uppercase",
-                  }}>
+                  <span style={{ fontSize: "9px", fontWeight: 700, padding: "1px 5px", borderRadius: "3px", background: "rgba(26,86,219,.1)", color: "#1a56db", textTransform: "uppercase" }}>
                     {item.selected_size}
+                  </span>
+                )}
+                {item.selected_color && (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", fontSize: "9px", fontWeight: 600, color: "rgba(10,13,20,.5)" }}>
+                    <span style={{
+                      width: "7px", height: "7px", borderRadius: "50%",
+                      background: item.product?.colors?.find((c: any) => c.name === item.selected_color)?.hex ?? "#999",
+                      border: "1px solid rgba(10,13,20,.15)", flexShrink: 0,
+                    }} />
+                    {item.selected_color}
                   </span>
                 )}
                 <span className="text-[10px] text-muted-foreground">× {item.quantity}</span>
@@ -882,7 +852,6 @@ const OrderSummary = ({ items, subtotal, discount, shippingFee, grandTotal, vouc
           </div>
         ))}
       </div>
-
       <div className="space-y-1 text-sm border-t border-border pt-3">
         <div className="flex justify-between text-muted-foreground">
           <span>Subtotal ({items.length} items)</span><span>₱{subtotal.toLocaleString()}</span>

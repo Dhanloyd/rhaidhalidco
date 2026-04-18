@@ -4,44 +4,21 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
   Minus, Plus, Trash2, ShoppingCart, ChevronRight,
-  Tag, Truck, Shield, RotateCcw, Heart, Ruler,
-  Lock, AlertTriangle, CheckCircle2, Package, ChevronDown,
+  Tag, Truck, Shield, RotateCcw, Heart,
+  Lock, AlertTriangle, Package,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useState, useCallback, useEffect } from "react";
 import type { CartItem, SizeStock, ProductColor } from "@/hooks/useCart";
 
 // ─── Promo codes ──────────────────────────────────────────────────────────────
-
 const PROMO_CODES: Record<string, (subtotal: number) => number> = {
   SAVE10:    (sub) => Math.round(sub * 0.1),
   FREESHIP:  ()    => 100,
   WELCOME20: (sub) => Math.round(sub * 0.2),
 };
 
-// ─── Color swatches ───────────────────────────────────────────────────────────
-
-const ColorSwatches = ({
-  colors, selected, onSelect,
-}: {
-  colors: ProductColor[];
-  selected?: string | null;
-  onSelect: (name: string) => void;
-}) => (
-  <div className="flex items-center gap-1.5 flex-wrap">
-    {colors.map((c) => (
-      <button key={c.name} title={c.name} type="button" onClick={() => onSelect(c.name)}
-        className={`w-[22px] h-[22px] rounded-full transition-all flex-shrink-0
-          ${selected === c.name ? "ring-2 ring-offset-1 ring-foreground scale-110" : "hover:scale-105"}
-          ${c.name.toLowerCase() === "white" ? "border border-border" : ""}`}
-        style={{ background: c.hex }}
-      />
-    ))}
-  </div>
-);
-
-// ─── Size pills with per-size stock ──────────────────────────────────────────
-
+// ─── Size pills ──────────────────────────────────────────────────────────────
 const SizePills = ({
   sizeInventory, outOfStock, selected, onSelect,
 }: {
@@ -51,16 +28,17 @@ const SizePills = ({
   onSelect: (size: string) => void;
 }) => {
   if (sizeInventory.length === 0) return null;
-
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
       {sizeInventory.map(({ size, stock }) => {
         const oos = stock === 0 || outOfStock.includes(size);
         const lowStock = !oos && stock <= 5;
         const isSelected = selected === size;
-
         return (
-          <button key={size} type="button" disabled={oos}
+          <button
+            key={size}
+            type="button"
+            disabled={oos}
             title={oos ? "Out of stock" : `${stock} left`}
             onClick={() => !oos && onSelect(size)}
             className={`relative min-w-[36px] h-8 px-2 rounded-lg text-[11px] font-semibold border transition-all
@@ -75,9 +53,6 @@ const SizePills = ({
             {lowStock && !isSelected && (
               <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400 border border-background" />
             )}
-            {isSelected && !oos && (
-              <span className="ml-1 text-[9px] opacity-60 font-normal">({stock})</span>
-            )}
           </button>
         );
       })}
@@ -85,25 +60,38 @@ const SizePills = ({
   );
 };
 
-// ─── Zalora-style size badge ──────────────────────────────────────────────────
+// ─── Size badge ──────────────────────────────────────────────────────────────
+const SizeBadge = ({ size }: { size: string }) => (
+  <span style={{
+    display: "inline-flex", alignItems: "center", gap: "4px",
+    padding: "3px 10px", borderRadius: "4px",
+    background: "rgba(10,13,20,.06)", border: "1px solid rgba(10,13,20,.12)",
+    fontSize: "11px", fontWeight: 700, color: "#0a0d14", letterSpacing: ".04em",
+    textTransform: /^\d/.test(size) ? "none" : "uppercase",
+  }}>
+    {/^\d/.test(size) ? "📏" : "👕"} {size}
+  </span>
+);
 
-const SizeBadge = ({ size, category }: { size: string; category?: string }) => {
-  const isMeasurement = /^\d/.test(size); // e.g. "32x30"
-  return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: "4px",
-      padding: "3px 10px", borderRadius: "4px",
-      background: "rgba(10,13,20,.06)", border: "1px solid rgba(10,13,20,.12)",
-      fontSize: "11px", fontWeight: 700, color: "#0a0d14", letterSpacing: ".04em",
-      textTransform: isMeasurement ? "none" : "uppercase",
-    }}>
-      {isMeasurement ? "📏" : "👕"} {size}
-    </span>
-  );
-};
+// ─── Color badge (display only) ───────────────────────────────────────────────
+const ColorBadge = ({ color, hex }: { color: string; hex?: string }) => (
+  <span style={{
+    display: "inline-flex", alignItems: "center", gap: "5px",
+    padding: "3px 10px", borderRadius: "4px",
+    background: "rgba(10,13,20,.05)", border: "1px solid rgba(10,13,20,.1)",
+    fontSize: "11px", fontWeight: 600, color: "#0a0d14",
+  }}>
+    {hex && (
+      <span style={{
+        width: "10px", height: "10px", borderRadius: "50%",
+        background: hex, border: "1px solid rgba(10,13,20,.15)", flexShrink: 0,
+      }} />
+    )}
+    {color}
+  </span>
+);
 
 // ─── Cart Page ────────────────────────────────────────────────────────────────
-
 const CartPage = () => {
   const { items, totalPrice, totalItems, updateQuantity, removeFromCart, clearCart, loading } = useCart();
   const { user } = useAuth();
@@ -111,13 +99,14 @@ const CartPage = () => {
 
   const cartItems = items as CartItem[];
 
-  const [variants, setVariants] = useState<Record<string, { selectedColor?: string | null; selectedSize?: string | null }>>({});
+  const [variants, setVariants] = useState<Record<string, {
+    selectedSize?: string | null;
+  }>>({});
 
   useEffect(() => {
     const init: typeof variants = {};
     cartItems.forEach((item) => {
       init[item.id] = {
-        selectedColor: item.selected_color ?? item.product?.colors?.[0]?.name ?? null,
         selectedSize: item.selected_size ?? null,
       };
     });
@@ -128,19 +117,13 @@ const CartPage = () => {
   const [promoApplied, setPromoApplied] = useState<string | null>(null);
   const [promoDiscount, setPromoDiscount] = useState(0);
   const [promoError, setPromoError] = useState("");
-
   const [wishlist, setWishlist] = useState<Set<string>>(new Set());
 
-  const setColor = useCallback((itemId: string, colorName: string) => {
-    setVariants((prev) => ({ ...prev, [itemId]: { ...prev[itemId], selectedColor: colorName } }));
-    const item = cartItems.find((i) => i.id === itemId);
-    if (item) updateQuantity(item.product_id, item.quantity, { selected_color: colorName });
-  }, [cartItems, updateQuantity]);
-
+  // ── Size selection ──
   const setSize = useCallback((itemId: string, size: string) => {
     setVariants((prev) => ({ ...prev, [itemId]: { ...prev[itemId], selectedSize: size } }));
     const item = cartItems.find((i) => i.id === itemId);
-    if (item) updateQuantity(item.product_id, item.quantity, { selected_size: size });
+    if (item) updateQuantity(item.id, item.quantity, { selected_size: size });
   }, [cartItems, updateQuantity]);
 
   const applyPromo = () => {
@@ -171,12 +154,11 @@ const CartPage = () => {
     });
   };
 
- // moveToWishlist function
-const moveToWishlist = (item: CartItem) => {
-  setWishlist((prev) => new Set(prev).add(item.product_id));
-  removeFromCart(item.id);   // ← was item.product_id
-  toast.success(`"${item.product?.name}" moved to wishlist.`);
-};
+  const moveToWishlist = (item: CartItem) => {
+    setWishlist((prev) => new Set(prev).add(item.product_id));
+    removeFromCart(item.id);
+    toast.success(`"${item.product?.name}" moved to wishlist.`);
+  };
 
   const shippingFee  = totalPrice >= 2000 ? 0 : 100;
   const freeShipPct  = Math.min(100, Math.round((totalPrice / 2000) * 100));
@@ -188,7 +170,6 @@ const moveToWishlist = (item: CartItem) => {
     return sizeInv.length > 0 && !variants[item.id]?.selectedSize;
   });
 
-  // ── Group items by product category (Zalora-style) ────────────────────────
   type GroupedItems = Record<string, CartItem[]>;
   const groupedByCategory = cartItems.reduce<GroupedItems>((acc, item) => {
     const cat = item.product?.category ?? "Other";
@@ -196,7 +177,6 @@ const moveToWishlist = (item: CartItem) => {
     acc[cat].push(item);
     return acc;
   }, {});
-
   const categoryGroups = Object.entries(groupedByCategory);
 
   if (!user) {
@@ -218,7 +198,6 @@ const moveToWishlist = (item: CartItem) => {
 
   return (
     <div className="min-h-screen bg-muted/30 pt-20 pb-16">
-
       {/* Breadcrumb */}
       <div className="bg-background border-b border-border">
         <div className="container mx-auto px-4 py-3 flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -231,12 +210,10 @@ const moveToWishlist = (item: CartItem) => {
       </div>
 
       <div className="container mx-auto px-4 py-8 max-w-6xl">
-
         {loading ? (
           <div className="flex justify-center py-24">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
           </div>
-
         ) : cartItems.length === 0 ? (
           <div className="bg-background rounded-2xl border border-border p-16 text-center max-w-md mx-auto mt-8">
             <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center mx-auto mb-6">
@@ -245,32 +222,27 @@ const moveToWishlist = (item: CartItem) => {
             <h2 className="font-heading text-xl uppercase tracking-wider text-foreground mb-2">Your bag is empty</h2>
             <p className="text-sm text-muted-foreground mb-8">Looks like you haven't added anything yet.</p>
             <Link to="/shop">
-              <Button className="bg-primary text-primary-foreground font-heading uppercase tracking-wider px-10">
-                Start Shopping
-              </Button>
+              <Button className="bg-primary text-primary-foreground font-heading uppercase tracking-wider px-10">Start Shopping</Button>
             </Link>
           </div>
-
         ) : (
           <div className="grid lg:grid-cols-3 gap-6 items-start">
 
-            {/* ── LEFT: Items (grouped by category, Zalora-style) ── */}
+            {/* ── LEFT: Items ── */}
             <div className="lg:col-span-2 space-y-4">
-
               <div className="flex items-center justify-between mb-2">
                 <h1 className="font-heading text-xl uppercase tracking-wider text-foreground">
                   Shopping Bag <span className="text-muted-foreground font-normal text-base">({totalItems})</span>
                 </h1>
-                <button onClick={() => { if (confirm("Remove all items?")) clearCart(); }}
+                <button
+                  onClick={() => { if (confirm("Remove all items?")) clearCart(); }}
                   className="text-xs text-muted-foreground hover:text-destructive transition-colors underline underline-offset-2">
                   Clear all
                 </button>
               </div>
 
-              {/* Category-grouped sections */}
               {categoryGroups.map(([category, groupItems]) => (
                 <div key={category} className="bg-background rounded-xl border border-border/60 overflow-hidden">
-                  {/* Category header */}
                   <div style={{
                     padding: "12px 16px",
                     background: "linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%)",
@@ -278,16 +250,8 @@ const moveToWishlist = (item: CartItem) => {
                     display: "flex", alignItems: "center", justifyContent: "space-between",
                   }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <span style={{
-                        fontSize: "10px", fontWeight: 800, letterSpacing: ".18em",
-                        textTransform: "uppercase", color: "#1a56db",
-                      }}>
-                        {category}
-                      </span>
-                      <span style={{
-                        fontSize: "10px", fontWeight: 700, color: "rgba(26,86,219,.6)",
-                        background: "rgba(26,86,219,.08)", padding: "1px 7px", borderRadius: "999px",
-                      }}>
+                      <span style={{ fontSize: "10px", fontWeight: 800, letterSpacing: ".18em", textTransform: "uppercase", color: "#1a56db" }}>{category}</span>
+                      <span style={{ fontSize: "10px", fontWeight: 700, color: "rgba(26,86,219,.6)", background: "rgba(26,86,219,.08)", padding: "1px 7px", borderRadius: "999px" }}>
                         {groupItems.length} {groupItems.length === 1 ? "item" : "items"}
                       </span>
                     </div>
@@ -296,228 +260,144 @@ const moveToWishlist = (item: CartItem) => {
                     </span>
                   </div>
 
-                  {/* Items in category */}
-                  <div>
-                    {groupItems.map((item, itemIndex) => {
-                      const product        = item.product;
-                      const itemVariant    = variants[item.id] ?? {};
-                      const colors         = product?.colors ?? [];
-                      const sizeInventory  = product?.size_inventory ?? [];
-                      const outOfStock     = product?.out_of_stock_sizes ?? [];
-                      const unitPrice      = product?.price ?? 0;
-                      const lineTotal      = unitPrice * item.quantity;
-                      const isWishlisted   = wishlist.has(item.product_id);
-                      const hasSizes       = sizeInventory.length > 0;
-                      const sizeSelected   = itemVariant.selectedSize ?? item.selected_size;
-                      const sizeMissing    = hasSizes && !sizeSelected;
-                      const selectedSizeStock = sizeInventory.find((s) => s.size === sizeSelected)?.stock ?? 99;
+                  {groupItems.map((item, itemIndex) => {
+                    const product       = item.product;
+                    const itemVariant   = variants[item.id] ?? {};
+                    const sizeInventory = product?.size_inventory ?? [];
+                    const outOfStock    = product?.out_of_stock_sizes ?? [];
+                    const colors        = product?.colors ?? [];
+                    const unitPrice     = product?.price ?? 0;
+                    const lineTotal     = unitPrice * item.quantity;
+                    const isWishlisted  = wishlist.has(item.product_id);
+                    const hasSizes      = sizeInventory.length > 0;
+                    const sizeSelected  = itemVariant.selectedSize ?? item.selected_size;
+                    const colorSelected = item.selected_color ?? null;
+                    const colorHex      = colors.find(c => c.name === colorSelected)?.hex ?? item.selected_color_hex ?? null;
+                    const sizeMissing   = hasSizes && !sizeSelected;
+                    const selectedSizeStock = sizeInventory.find((s) => s.size === sizeSelected)?.stock ?? 99;
 
-                      return (
-                        <div key={item.id}
-                          style={{
-                            padding: "16px",
-                            borderBottom: itemIndex < groupItems.length - 1 ? "1px solid rgba(10,13,20,.06)" : "none",
-                            background: sizeMissing ? "rgba(245,158,11,.03)" : "transparent",
-                            borderLeft: sizeMissing ? "3px solid #f59e0b" : "3px solid transparent",
-                          }}
-                        >
-                          {/* Item row */}
-                          <div style={{ display: "flex", gap: "14px" }}>
-                            {/* Wishlist heart */}
-                            <button onClick={() => toggleWishlist(item.product_id)}
-                              style={{
-                                position: "absolute", 
-                                color: isWishlisted ? "#ef4444" : "rgba(10,13,20,.3)",
-                                background: "none", border: "none", cursor: "pointer",
-                                padding: "4px", marginLeft: "auto",
-                                transition: "color .2s ease",
-                              }}
-                              className="hidden"
-                            />
-
-                            {/* Image */}
-                            <Link to="/shop" style={{ flexShrink: 0 }}>
-                              <div style={{
-                                width: "100px", height: "130px", borderRadius: "8px",
-                                background: "#f3f4f6", overflow: "hidden", position: "relative",
-                              }}>
-                                {product?.image_url ? (
-                                  <img src={product.image_url} alt={product.name}
-                                    style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                ) : (
-                                  <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                    <Package size={24} style={{ color: "rgba(10,13,20,.2)" }} />
-                                  </div>
-                                )}
-                                {product?.discount_price && (
-                                  <span style={{
-                                    position: "absolute", top: "6px", left: "6px",
-                                    background: "#ef4444", color: "#fff",
-                                    fontSize: "9px", fontWeight: 700, padding: "2px 5px", borderRadius: "3px",
-                                    letterSpacing: ".04em",
-                                  }}>SALE</span>
-                                )}
-                              </div>
-                            </Link>
-
-                            {/* Body */}
-                            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "6px" }}>
-
-                              {/* Top row: name + actions */}
-                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                                <div style={{ flex: 1, paddingRight: "8px" }}>
-                                  {product?.brand && (
-                                    <p style={{ fontSize: "9px", fontWeight: 800, letterSpacing: ".18em", textTransform: "uppercase", color: "rgba(10,13,20,.4)", marginBottom: "3px" }}>
-                                      {product.brand}
-                                    </p>
-                                  )}
-                                  <h3 style={{ fontWeight: 600, color: "#0a0d14", fontSize: "13px", lineHeight: 1.4 }}
-                                    className="line-clamp-2">
-                                    {product?.name}
-                                  </h3>
-                                </div>
-                                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
-                                  <button onClick={() => toggleWishlist(item.product_id)}
-                                    style={{ color: isWishlisted ? "#ef4444" : "rgba(10,13,20,.3)", background: "none", border: "none", cursor: "pointer", padding: "2px" }}>
-                                    <Heart size={15} fill={isWishlisted ? "currentColor" : "none"} />
-                                  </button>
-                                 // Trash button
-<button onClick={() => { removeFromCart(item.id); toast.info("Item removed."); }}
-                                    style={{ color: "rgba(10,13,20,.3)", background: "none", border: "none", cursor: "pointer", padding: "2px", transition: "color .2s ease" }}
-                                    onMouseEnter={e => (e.currentTarget.style.color = "#ef4444")}
-                                    onMouseLeave={e => (e.currentTarget.style.color = "rgba(10,13,20,.3)")}>
-                                    <Trash2 size={14} />
-                                  </button>
-                                </div>
-                              </div>
-
-                              {/* ── SIZE DISPLAY (Zalora-style) ── */}
-                              <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                                {sizeSelected ? (
-                                  <SizeBadge size={sizeSelected} category={category} />
-                                ) : hasSizes ? (
-                                  <span style={{
-                                    display: "inline-flex", alignItems: "center", gap: "5px",
-                                    padding: "3px 10px", borderRadius: "4px",
-                                    background: "rgba(245,158,11,.1)", border: "1px solid rgba(245,158,11,.3)",
-                                    fontSize: "11px", fontWeight: 700, color: "#d97706",
-                                  }}>
-                                    <AlertTriangle size={10} /> Select Size
-                                  </span>
-                                ) : null}
-
-                                {itemVariant.selectedColor && (
-                                  <span style={{
-                                    display: "inline-flex", alignItems: "center", gap: "5px",
-                                    padding: "3px 10px", borderRadius: "4px",
-                                    background: "rgba(10,13,20,.05)", border: "1px solid rgba(10,13,20,.1)",
-                                    fontSize: "11px", fontWeight: 600, color: "#0a0d14",
-                                  }}>
-                                    🎨 {itemVariant.selectedColor}
-                                  </span>
-                                )}
-                              </div>
-
-                              {/* Price */}
-                              <div style={{ display: "flex", alignItems: "baseline", gap: "8px" }}>
-                                <span style={{ fontSize: "14px", fontWeight: 800, color: "#0a0d14" }}>
-                                  ₱{unitPrice.toLocaleString()}
-                                </span>
-                                {product?.discount_price && (
-                                  <>
-                                    <span style={{ fontSize: "11px", color: "rgba(10,13,20,.35)", textDecoration: "line-through" }}>
-                                      ₱{product.discount_price.toLocaleString()}
-                                    </span>
-                                    <span style={{ fontSize: "10px", color: "#ef4444", fontWeight: 700 }}>
-                                      −₱{(product.discount_price - unitPrice).toLocaleString()}
-                                    </span>
-                                  </>
-                                )}
-                              </div>
-
-                              {/* Color selector */}
-                              {colors.length > 0 && (
-                                <div>
-                                  <p style={{ fontSize: "10px", color: "rgba(10,13,20,.4)", marginBottom: "5px", fontWeight: 600 }}>
-                                    Color: <span style={{ color: "#0a0d14" }}>{itemVariant.selectedColor ?? "—"}</span>
-                                  </p>
-                                  <ColorSwatches
-                                    colors={colors}
-                                    selected={itemVariant.selectedColor}
-                                    onSelect={(name) => setColor(item.id, name)}
-                                  />
+                    return (
+                      <div key={item.id} style={{
+                        padding: "16px",
+                        borderBottom: itemIndex < groupItems.length - 1 ? "1px solid rgba(10,13,20,.06)" : "none",
+                        background: sizeMissing ? "rgba(245,158,11,.03)" : "transparent",
+                        borderLeft: sizeMissing ? "3px solid #f59e0b" : "3px solid transparent",
+                      }}>
+                        <div style={{ display: "flex", gap: "14px" }}>
+                          {/* Image */}
+                          <Link to="/shop" style={{ flexShrink: 0 }}>
+                            <div style={{ width: "100px", height: "130px", borderRadius: "8px", background: "#f3f4f6", overflow: "hidden" }}>
+                              {product?.image_url ? (
+                                <img src={product.image_url} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                              ) : (
+                                <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                  <Package size={24} style={{ color: "rgba(10,13,20,.2)" }} />
                                 </div>
                               )}
+                            </div>
+                          </Link>
 
-                             
+                          {/* Body */}
+                          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "8px" }}>
+                            {/* Name + actions */}
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                              <div style={{ flex: 1, paddingRight: "8px" }}>
+                                {product?.brand && (
+                                  <p style={{ fontSize: "9px", fontWeight: 800, letterSpacing: ".18em", textTransform: "uppercase", color: "rgba(10,13,20,.4)", marginBottom: "3px" }}>{product.brand}</p>
+                                )}
+                                <h3 style={{ fontWeight: 600, color: "#0a0d14", fontSize: "13px", lineHeight: 1.4 }} className="line-clamp-2">{product?.name}</h3>
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+                                <button onClick={() => toggleWishlist(item.product_id)}
+                                  style={{ color: isWishlisted ? "#ef4444" : "rgba(10,13,20,.3)", background: "none", border: "none", cursor: "pointer", padding: "2px" }}>
+                                  <Heart size={15} fill={isWishlisted ? "currentColor" : "none"} />
+                                </button>
+                                <button
+                                  onClick={() => { removeFromCart(item.id); toast.info("Item removed."); }}
+                                  style={{ color: "rgba(10,13,20,.3)", background: "none", border: "none", cursor: "pointer", padding: "2px" }}
+                                  onMouseEnter={e => (e.currentTarget.style.color = "#ef4444")}
+                                  onMouseLeave={e => (e.currentTarget.style.color = "rgba(10,13,20,.3)")}>
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </div>
 
-                              {/* Qty + line total */}
-                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "4px" }}>
-                                <div style={{
-                                  display: "flex", alignItems: "center",
-                                  border: "1.5px solid rgba(10,13,20,.12)", borderRadius: "8px", overflow: "hidden",
-                                }}>
-                                  <button
-                                    onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
-                                    style={{
-                                      width: "32px", height: "32px", display: "flex", alignItems: "center", justifyContent: "center",
-                                      background: "none", border: "none", cursor: "pointer", color: "rgba(10,13,20,.5)",
-                                      transition: "background .15s ease",
-                                    }}
-                                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(10,13,20,.05)")}
-                                    onMouseLeave={e => (e.currentTarget.style.background = "none")}>
-                                    <Minus size={12} />
-                                  </button>
-                                  <span style={{
-                                    width: "36px", textAlign: "center", fontSize: "13px", fontWeight: 700,
-                                    color: "#0a0d14", borderLeft: "1.5px solid rgba(10,13,20,.1)", borderRight: "1.5px solid rgba(10,13,20,.1)",
-                                    height: "32px", display: "flex", alignItems: "center", justifyContent: "center",
-                                  }}>
-                                    {item.quantity}
+                            {/* Size + Color display (no picker for color) */}
+                            <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                              {sizeSelected
+                                ? <SizeBadge size={sizeSelected} />
+                                : hasSizes && (
+                                  <span style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "3px 10px", borderRadius: "4px", background: "rgba(245,158,11,.1)", border: "1px solid rgba(245,158,11,.3)", fontSize: "11px", fontWeight: 700, color: "#d97706" }}>
+                                    <AlertTriangle size={10} /> Select Size
                                   </span>
-                                  <button
-                                    onClick={() => {
-                                      if (sizeSelected && item.quantity >= selectedSizeStock) {
-                                        toast.error(`Only ${selectedSizeStock} left in ${sizeSelected}`);
-                                        return;
-                                      }
-                                      updateQuantity(item.product_id, item.quantity + 1);
-                                    }}
-                                    disabled={sizeSelected ? item.quantity >= selectedSizeStock : false}
-                                    style={{
-                                      width: "32px", height: "32px", display: "flex", alignItems: "center", justifyContent: "center",
-                                      background: "none", border: "none", cursor: "pointer", color: "rgba(10,13,20,.5)",
-                                      transition: "background .15s ease",
-                                    }}
-                                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(10,13,20,.05)")}
-                                    onMouseLeave={e => (e.currentTarget.style.background = "none")}>
-                                    <Plus size={12} />
-                                  </button>
-                                </div>
+                                )
+                              }
+                              {colorSelected && <ColorBadge color={colorSelected} hex={colorHex ?? undefined} />}
+                            </div>
 
-                                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                                  <span style={{ fontSize: "14px", fontWeight: 800, color: "#0a0d14" }}>
-                                    ₱{lineTotal.toLocaleString()}
-                                  </span>
-                                  <button onClick={() => moveToWishlist(item)}
-                                    style={{
-                                      fontSize: "10px", color: "rgba(10,13,20,.4)", fontWeight: 600,
-                                      background: "none", border: "none", cursor: "pointer",
-                                      display: "flex", alignItems: "center", gap: "3px",
-                                      transition: "color .2s ease",
-                                    }}
-                                    onMouseEnter={e => (e.currentTarget.style.color = "#ef4444")}
-                                    onMouseLeave={e => (e.currentTarget.style.color = "rgba(10,13,20,.4)")}>
-                                    <Heart size={11} /> Move to Wishlist
-                                  </button>
-                                </div>
+                            {/* Price */}
+                            <div style={{ display: "flex", alignItems: "baseline", gap: "8px" }}>
+                              <span style={{ fontSize: "14px", fontWeight: 800, color: "#0a0d14" }}>₱{unitPrice.toLocaleString()}</span>
+                            </div>
+
+                            {/* ── SIZE SELECTOR only ── */}
+                            {hasSizes && (
+                              <div>
+                                <p style={{ fontSize: "10px", color: "rgba(10,13,20,.5)", marginBottom: "6px", fontWeight: 600 }}>
+                                  Size: <span style={{ color: "#0a0d14", fontWeight: 700 }}>{sizeSelected ?? "Not selected"}</span>
+                                </p>
+                                <SizePills
+                                  sizeInventory={sizeInventory}
+                                  outOfStock={outOfStock}
+                                  selected={sizeSelected}
+                                  onSelect={(size) => setSize(item.id, size)}
+                                />
+                              </div>
+                            )}
+
+                            {/* Qty + line total */}
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "4px" }}>
+                              <div style={{ display: "flex", alignItems: "center", border: "1.5px solid rgba(10,13,20,.12)", borderRadius: "8px", overflow: "hidden" }}>
+                                <button onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                                  style={{ width: "32px", height: "32px", display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", cursor: "pointer", color: "rgba(10,13,20,.5)" }}
+                                  onMouseEnter={e => (e.currentTarget.style.background = "rgba(10,13,20,.05)")}
+                                  onMouseLeave={e => (e.currentTarget.style.background = "none")}>
+                                  <Minus size={12} />
+                                </button>
+                                <span style={{ width: "36px", textAlign: "center", fontSize: "13px", fontWeight: 700, color: "#0a0d14", borderLeft: "1.5px solid rgba(10,13,20,.1)", borderRight: "1.5px solid rgba(10,13,20,.1)", height: "32px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                  {item.quantity}
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    if (sizeSelected && item.quantity >= selectedSizeStock) {
+                                      toast.error(`Only ${selectedSizeStock} left in size ${sizeSelected}`);
+                                      return;
+                                    }
+                                    updateQuantity(item.id, item.quantity + 1);
+                                  }}
+                                  disabled={sizeSelected ? item.quantity >= selectedSizeStock : false}
+                                  style={{ width: "32px", height: "32px", display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", cursor: "pointer", color: "rgba(10,13,20,.5)" }}
+                                  onMouseEnter={e => (e.currentTarget.style.background = "rgba(10,13,20,.05)")}
+                                  onMouseLeave={e => (e.currentTarget.style.background = "none")}>
+                                  <Plus size={12} />
+                                </button>
+                              </div>
+
+                              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                                <span style={{ fontSize: "14px", fontWeight: 800, color: "#0a0d14" }}>₱{lineTotal.toLocaleString()}</span>
+                                <button onClick={() => moveToWishlist(item)}
+                                  style={{ fontSize: "10px", color: "rgba(10,13,20,.4)", fontWeight: 600, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "3px" }}
+                                  onMouseEnter={e => (e.currentTarget.style.color = "#ef4444")}
+                                  onMouseLeave={e => (e.currentTarget.style.color = "rgba(10,13,20,.4)")}>
+                                  <Heart size={11} /> Wishlist
+                                </button>
                               </div>
                             </div>
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
+                      </div>
+                    );
+                  })}
                 </div>
               ))}
 
@@ -526,7 +406,7 @@ const moveToWishlist = (item: CartItem) => {
                 {[
                   { icon: Truck,     label: "Free Shipping", sub: "Orders over ₱2,000" },
                   { icon: RotateCcw, label: "Easy Returns",  sub: "Within 7 days" },
-                  { icon: Shield,    label: "Secure Payment",sub: "100% protected" },
+                  { icon: Shield,    label: "Secure Payment", sub: "100% protected" },
                 ].map((b) => (
                   <div key={b.label} className="bg-background border border-border/60 rounded-xl p-3 flex flex-col items-center text-center gap-1">
                     <b.icon size={18} className="text-primary mb-0.5" />
@@ -539,23 +419,19 @@ const moveToWishlist = (item: CartItem) => {
 
             {/* ── RIGHT: Order Summary ── */}
             <div className="space-y-4 sticky top-24">
-
-              {/* Promo code */}
+              {/* Promo */}
               <div className="bg-background rounded-xl border border-border/60 p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <Tag size={14} className="text-primary" />
                   <p className="text-sm font-medium text-foreground">Promo Code</p>
                 </div>
-
                 {promoApplied ? (
                   <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-3 py-2">
                     <div>
                       <p className="text-xs font-semibold text-green-700">{promoApplied} applied</p>
                       <p className="text-[10px] text-green-600">−₱{promoDiscount.toLocaleString()} saved</p>
                     </div>
-                    <button onClick={removePromo} className="text-[10px] text-muted-foreground hover:text-destructive underline underline-offset-2">
-                      Remove
-                    </button>
+                    <button onClick={removePromo} className="text-[10px] text-muted-foreground hover:text-destructive underline underline-offset-2">Remove</button>
                   </div>
                 ) : (
                   <>
@@ -566,8 +442,7 @@ const moveToWishlist = (item: CartItem) => {
                         placeholder="Enter code"
                         className="flex-1 min-w-0 h-9 rounded-lg border border-border bg-muted/40 px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                       />
-                      <Button variant="outline" size="sm" onClick={applyPromo}
-                        className="font-heading uppercase tracking-wider text-xs shrink-0">Apply</Button>
+                      <Button variant="outline" size="sm" onClick={applyPromo} className="font-heading uppercase tracking-wider text-xs shrink-0">Apply</Button>
                     </div>
                     {promoError && <p className="text-[11px] text-destructive mt-1.5">{promoError}</p>}
                   </>
@@ -587,34 +462,36 @@ const moveToWishlist = (item: CartItem) => {
                   </div>
                 )}
 
-                {/* Item-by-item breakdown */}
-                <div style={{ borderBottom: "1px solid rgba(10,13,20,.08)", paddingBottom: "12px", marginBottom: "4px" }}>
-                  {cartItems.map(item => (
-                    <div key={item.id} style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px", gap: "8px" }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: "11px", fontWeight: 600, color: "#0a0d14", lineHeight: 1.35 }} className="truncate">
-                          {item.product?.name}
-                        </p>
-                        <div style={{ display: "flex", gap: "5px", marginTop: "2px", flexWrap: "wrap" }}>
-                          {(variants[item.id]?.selectedSize ?? item.selected_size) && (
-                            <span style={{
-                              fontSize: "9px", fontWeight: 700, padding: "1px 5px", borderRadius: "3px",
-                              background: "rgba(26,86,219,.08)", color: "#1a56db", border: "1px solid rgba(26,86,219,.12)",
-                              textTransform: "uppercase",
-                            }}>
-                              {variants[item.id]?.selectedSize ?? item.selected_size}
-                            </span>
-                          )}
-                          <span style={{ fontSize: "10px", color: "rgba(10,13,20,.4)", fontWeight: 500 }}>
-                            × {item.quantity}
-                          </span>
+                {/* Item breakdown with color */}
+                <div style={{ borderBottom: "1px solid rgba(10,13,20,.08)", paddingBottom: "12px" }}>
+                  {cartItems.map(item => {
+                    const colorSelected = item.selected_color ?? null;
+                    const colorHex = item.product?.colors?.find((c: ProductColor) => c.name === colorSelected)?.hex ?? (item as any).selected_color_hex ?? null;
+                    return (
+                      <div key={item.id} style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", gap: "8px" }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: "11px", fontWeight: 600, color: "#0a0d14" }} className="truncate">{item.product?.name}</p>
+                          <div style={{ display: "flex", gap: "5px", marginTop: "3px", flexWrap: "wrap", alignItems: "center" }}>
+                            {(variants[item.id]?.selectedSize ?? item.selected_size) && (
+                              <span style={{ fontSize: "9px", fontWeight: 700, padding: "1px 5px", borderRadius: "3px", background: "rgba(26,86,219,.08)", color: "#1a56db", border: "1px solid rgba(26,86,219,.12)", textTransform: "uppercase" }}>
+                                {variants[item.id]?.selectedSize ?? item.selected_size}
+                              </span>
+                            )}
+                            {colorSelected && (
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", fontSize: "9px", fontWeight: 600, color: "rgba(10,13,20,.5)" }}>
+                                {colorHex && <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: colorHex, border: "1px solid rgba(10,13,20,.15)", flexShrink: 0 }} />}
+                                {colorSelected}
+                              </span>
+                            )}
+                            <span style={{ fontSize: "10px", color: "rgba(10,13,20,.4)" }}>× {item.quantity}</span>
+                          </div>
                         </div>
+                        <span style={{ fontSize: "12px", fontWeight: 700, color: "#0a0d14", flexShrink: 0 }}>
+                          ₱{((item.product?.price ?? 0) * item.quantity).toLocaleString()}
+                        </span>
                       </div>
-                      <span style={{ fontSize: "12px", fontWeight: 700, color: "#0a0d14", flexShrink: 0 }}>
-                        ₱{((item.product?.price ?? 0) * item.quantity).toLocaleString()}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 <div className="space-y-2.5 text-sm">
@@ -622,26 +499,22 @@ const moveToWishlist = (item: CartItem) => {
                     <span>Subtotal ({totalItems} items)</span>
                     <span className="text-foreground">₱{totalPrice.toLocaleString()}</span>
                   </div>
-
                   {promoDiscount > 0 && (
                     <div className="flex justify-between text-muted-foreground">
                       <span>Promo ({promoApplied})</span>
                       <span className="text-green-600 font-medium">−₱{promoDiscount.toLocaleString()}</span>
                     </div>
                   )}
-
                   <div className="flex justify-between text-muted-foreground">
                     <span>Shipping Fee</span>
                     <span className={shippingFee === 0 ? "text-green-600 font-medium" : "text-foreground"}>
                       {shippingFee === 0 ? "FREE" : `₱${shippingFee}`}
                     </span>
                   </div>
-
                   {shippingFee > 0 && (
                     <div>
                       <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
-                        <div className="h-1.5 bg-green-500 rounded-full transition-all duration-500"
-                          style={{ width: `${freeShipPct}%` }} />
+                        <div className="h-1.5 bg-green-500 rounded-full transition-all duration-500" style={{ width: `${freeShipPct}%` }} />
                       </div>
                       <p className="text-[10px] text-muted-foreground mt-1.5">
                         Add <span className="font-medium text-foreground">₱{freeShipNeed.toLocaleString()}</span> more for free shipping
@@ -658,15 +531,13 @@ const moveToWishlist = (item: CartItem) => {
                 <Link to={hasMissingSize ? "#" : "/checkout"} className="block"
                   onClick={hasMissingSize ? (e) => e.preventDefault() : undefined}>
                   <Button disabled={hasMissingSize}
-                    className="w-full bg-primary text-primary-foreground font-heading uppercase tracking-wider text-sm h-12 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed">
+                    className="w-full bg-primary text-primary-foreground font-heading uppercase tracking-wider text-sm h-12 rounded-xl disabled:opacity-50">
                     {hasMissingSize ? "⚠️ Select sizes first" : "Proceed to Checkout"}
                   </Button>
                 </Link>
 
                 <Link to="/shop" className="block">
-                  <Button variant="outline" className="w-full font-heading uppercase tracking-wider text-xs h-10 rounded-xl">
-                    Continue Shopping
-                  </Button>
+                  <Button variant="outline" className="w-full font-heading uppercase tracking-wider text-xs h-10 rounded-xl">Continue Shopping</Button>
                 </Link>
 
                 <p className="text-[10px] text-muted-foreground text-center flex items-center justify-center gap-1">
@@ -674,11 +545,8 @@ const moveToWishlist = (item: CartItem) => {
                 </p>
 
                 <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-                  {["VISA", "Mastercard", "GCash", "Maya", "COD"].map((method) => (
-                    <span key={method}
-                      className="text-[9px] font-semibold tracking-wide text-muted-foreground border border-border rounded px-2 py-0.5">
-                      {method}
-                    </span>
+                  {["VISA", "Mastercard", "GCash", "COD"].map((method) => (
+                    <span key={method} className="text-[9px] font-semibold tracking-wide text-muted-foreground border border-border rounded px-2 py-0.5">{method}</span>
                   ))}
                 </div>
               </div>
