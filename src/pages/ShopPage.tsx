@@ -627,9 +627,55 @@ const ShopPage = () => {
       .then(({ data }) => { setProducts(data || []); setLoading(false); });
   }, []);
 
-  const handleAddToCart = (productId: string, quantity: number, variants?: { selected_size?: string; selected_color?: string; selected_color_hex?: string }) => {
-    addToCart(productId, quantity, variants);
-  };
+const handleAddToCart = async (
+  productId: string,
+  quantity: number,
+  variants?: {
+    selected_size?: string;
+    selected_color?: string;
+    selected_color_hex?: string;
+  }
+) => {
+  // Optimistically add to cart UI immediately
+  addToCart(productId, quantity, variants);
+
+  // Only deduct stock if a size was selected
+  if (!variants?.selected_size) return;
+
+  const { data: updatedInventory, error } = await supabase.rpc("deduct_size_stock", {
+    p_id: productId,
+    p_size: variants.selected_size,
+    p_qty: quantity,
+  });
+
+  if (error) {
+    console.error("Stock deduction failed:", error.message);
+    return;
+  }
+
+  // Parse the returned JSONB array
+  const inventory = updatedInventory as { size: string; stock: number }[];
+
+  const newOutOfStock = inventory
+    .filter((e) => e.stock === 0)
+    .map((e) => e.size);
+
+  // Update the products list state
+  setProducts((prev) =>
+    prev.map((p) =>
+      p.id === productId
+        ? { ...p, size_inventory: inventory, out_of_stock_sizes: newOutOfStock }
+        : p
+    )
+  );
+
+  // Sync the size picker sheet if it's open for this product
+  setSizePickerProduct((prev) =>
+    prev?.id === productId
+      ? { ...prev, size_inventory: inventory, out_of_stock_sizes: newOutOfStock }
+      : prev
+  );
+};
 
   const toggleWish   = (id: string) => setWishlist(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
   const toggleColor  = (c: string) => setSelectedColors(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]);
@@ -715,13 +761,13 @@ const ShopPage = () => {
   return (
     <div style={{ fontFamily:"'Outfit',sans-serif", background:"var(--bg)", minHeight:"100vh" }}>
 
-      {sizePickerProduct && (
-        <SizePickerSheet
-          product={sizePickerProduct}
-          onClose={() => setSizePickerProduct(null)}
-          onAddToCart={handleAddToCart}
-        />
-      )}
+     {sizePickerProduct && (
+  <SizePickerSheet
+    product={products.find(p => p.id === sizePickerProduct.id) ?? sizePickerProduct}
+    onClose={() => setSizePickerProduct(null)}
+    onAddToCart={handleAddToCart}
+  />
+)}
 
       <div className="zp-banner-strip">
         {[

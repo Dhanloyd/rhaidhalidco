@@ -341,20 +341,7 @@ const CartPage = () => {
                             </div>
 
                             {/* ── SIZE SELECTOR only ── */}
-                            {hasSizes && (
-                              <div>
-                                <p style={{ fontSize: "10px", color: "rgba(10,13,20,.5)", marginBottom: "6px", fontWeight: 600 }}>
-                                  Size: <span style={{ color: "#0a0d14", fontWeight: 700 }}>{sizeSelected ?? "Not selected"}</span>
-                                </p>
-                                <SizePills
-                                  sizeInventory={sizeInventory}
-                                  outOfStock={outOfStock}
-                                  selected={sizeSelected}
-                                  onSelect={(size) => setSize(item.id, size)}
-                                />
-                              </div>
-                            )}
-
+                          
                             {/* Qty + line total */}
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "4px" }}>
                               <div style={{ display: "flex", alignItems: "center", border: "1.5px solid rgba(10,13,20,.12)", borderRadius: "8px", overflow: "hidden" }}>
@@ -505,12 +492,7 @@ const CartPage = () => {
                       <span className="text-green-600 font-medium">−₱{promoDiscount.toLocaleString()}</span>
                     </div>
                   )}
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>Shipping Fee</span>
-                    <span className={shippingFee === 0 ? "text-green-600 font-medium" : "text-foreground"}>
-                      {shippingFee === 0 ? "FREE" : `₱${shippingFee}`}
-                    </span>
-                  </div>
+                
                   {shippingFee > 0 && (
                     <div>
                       <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">

@@ -11,7 +11,7 @@ import {
   ShoppingCart, MapPin, CreditCard, CheckCircle,
   ChevronRight, ChevronLeft, ExternalLink, Loader2,
 } from "lucide-react";
-import logo from "@/assets/logo.png"; // ← your logo
+import logo from "@/assets/logo.jpg"; // ← your logo
 
 const steps = ["Shipping", "Review", "Payment", "Confirmation"];
 const VERCEL_API = "https://rhaidhalidco-buy3.vercel.app/api/create-paymongo-checkout";
