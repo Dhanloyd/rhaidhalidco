@@ -160,10 +160,7 @@ const CartPage = () => {
     toast.success(`"${item.product?.name}" moved to wishlist.`);
   };
 
-  const shippingFee  = totalPrice >= 2000 ? 0 : 100;
-  const freeShipPct  = Math.min(100, Math.round((totalPrice / 2000) * 100));
-  const freeShipNeed = Math.max(0, 2000 - totalPrice);
-  const grandTotal   = totalPrice + shippingFee - promoDiscount;
+const grandTotal = totalPrice - promoDiscount;
 
   const hasMissingSize = cartItems.some((item) => {
     const sizeInv = item.product?.size_inventory ?? [];
@@ -493,16 +490,7 @@ const CartPage = () => {
                     </div>
                   )}
                 
-                  {shippingFee > 0 && (
-                    <div>
-                      <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
-                        <div className="h-1.5 bg-green-500 rounded-full transition-all duration-500" style={{ width: `${freeShipPct}%` }} />
-                      </div>
-                      <p className="text-[10px] text-muted-foreground mt-1.5">
-                        Add <span className="font-medium text-foreground">₱{freeShipNeed.toLocaleString()}</span> more for free shipping
-                      </p>
-                    </div>
-                  )}
+                  
                 </div>
 
                 <div className="border-t border-border pt-3 flex justify-between items-center">

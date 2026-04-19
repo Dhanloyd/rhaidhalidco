@@ -12,7 +12,6 @@ import {
   MapPin, Clock, RotateCcw, Package, AlertCircle,
 } from "lucide-react";
 
-// ── Must match your orders table status constraint ───────────────────────────
 const statusFlow = [
   "pending","confirmed","packed","shipped",
   "out_for_delivery","delivered","arrived","completed","cancelled",
@@ -53,102 +52,102 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
 
 const card = "bg-white/5 border border-white/10 backdrop-blur-xl rounded-2xl";
 
-// ── Timeline messages shown in order detail modal ────────────────────────────
 const TIMELINE_MESSAGES: Record<string, string> = {
   pending:          "Order placed successfully",
   confirmed:        "Order confirmed by seller",
   packed:           "Your order is being packed",
   shipped:          "Order has been shipped",
   out_for_delivery: "Out for delivery",
-  delivered:        "Package has been delivered",
-  arrived:          "Package has arrived",
-  completed:        "Order completed. Thank you!",
+  delivered:        "Package has been delivered",  // ← must be here
+  arrived:          "Package has arrived",          // ← must be here
+  completed:        "Order completed. Thank you!",  // ← must be here
   cancelled:        "Order was cancelled",
 };
 
 export default function OrdersPage() {
-  const [orders, setOrders]           = useState<any[]>([]);
-  const [search, setSearch]           = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [viewOrder, setViewOrder]     = useState<any>(null);
-  const [updatingId, setUpdatingId]   = useState<string | null>(null);
-  const [shippingModal, setShippingModal] = useState<any>(null);
+  const [orders, setOrders]                 = useState<any[]>([]);
+  const [search, setSearch]                 = useState("");
+  const [statusFilter, setStatusFilter]     = useState("all");
+  const [viewOrder, setViewOrder]           = useState<any>(null);
+  const [updatingId, setUpdatingId]         = useState<string | null>(null);
+  const [shippingModal, setShippingModal]   = useState<any>(null);
   const [trackingNumber, setTrackingNumber] = useState("");
-  const [courier, setCourier]         = useState("jnt");
+  const [courier, setCourier]               = useState("jnt");
+  const [showHidden, setShowHidden]         = useState(false);
 
-  // ── Fetch + realtime ────────────────────────────────────────────────────────
   useEffect(() => {
     fetchOrders();
-
-    // Realtime: re-fetch whenever any order changes
     const channel = supabase
       .channel("admin-orders-realtime")
-      .on("postgres_changes", {
-        event: "*", schema: "public", table: "orders",
-      }, () => fetchOrders())
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => fetchOrders())
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, []);
+const fetchOrders = async () => {
+  const { data, error } = await supabase
+    .from("orders")
+   .select("*, order_timeline(*), order_items(*)")
+    .order("created_at", { ascending: false });
 
-  const fetchOrders = async () => {
-    const { data } = await supabase
-      .from("orders")
-      .select("*, order_timeline(*), order_items(*)")
-      .eq("is_deleted", false)
-      .order("created_at", { ascending: false });
-    setOrders(data || []);
-  };
+  if (error) console.error("Fetch orders error:", error);
+  setOrders(data || []);
+};
 
-  // ── Soft delete ─────────────────────────────────────────────────────────────
-  const deleteOrder = async (id: string) => {
-    if (!confirm("Remove this order from view? It will be kept in the database.")) return;
-    const { error } = await supabase.from("orders").update({ is_deleted: true }).eq("id", id);
-    if (error) { toast.error("Failed to remove order"); return; }
-    toast.success("Order removed from view");
-    setOrders(prev => prev.filter(o => o.id !== id));
-  };
-
-  // ── Update status — syncs BOTH status_history AND order_timeline ────────────
-  const updateStatus = async (id: string, newStatus: string) => {
-    // Intercept shipped to collect tracking info first
-    if (newStatus === "shipped") {
-      const order = orders.find(o => o.id === id);
-      setShippingModal(order);
-      return;
-    }
-
-    setUpdatingId(id);
-    const now = new Date().toISOString();
-    const order = orders.find(o => o.id === id);
-
-    // Update status_history (admin side — stored in orders.status_history)
-    const history = [
-      ...(order?.status_history || []),
-      { status: newStatus, timestamp: now, message: TIMELINE_MESSAGES[newStatus] ?? newStatus },
-    ];
-
+  const deleteOrder = async (id: string, currentDeleted: boolean) => {
+    const action = currentDeleted ? "Restore" : "Hide";
+    if (!confirm(`${action} this order?`)) return;
     const { error } = await supabase
-      .from("orders")
-      .update({ status: newStatus, status_history: history })
-      .eq("id", id);
-    // ↑ The Postgres trigger automatically writes to order_timeline too,
-    //   so the customer's realtime page updates instantly.
-
-    if (error) {
-      toast.error("Failed to update status");
-    } else {
-      toast.success(`Order marked as ${newStatus}`);
-      setOrders(prev =>
-        prev.map(o => o.id === id ? { ...o, status: newStatus, status_history: history } : o)
-      );
-      if (viewOrder?.id === id)
-        setViewOrder((p: any) => ({ ...p, status: newStatus, status_history: history }));
-    }
-    setUpdatingId(null);
+  .from("orders")
+  .update({ 
+    status: newStatus,
+    // status_history: history,  // comment this out temporarily
+  })
+  .eq("id", id);
+    if (error) { toast.error("Failed to update order"); return; }
+    toast.success(`Order ${currentDeleted ? "restored" : "hidden"}`);
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, is_deleted: !currentDeleted } : o));
   };
 
-  // ── Confirm shipment with tracking ─────────────────────────────────────────
+const updateStatus = async (id: string, newStatus: string) => {
+  // Only intercept "shipped" to collect tracking info
+  if (newStatus === "shipped") {
+    const order = orders.find(o => o.id === id);
+    setShippingModal(order);
+    return;
+  }
+
+  // ALL other statuses including delivered, arrived, completed go here
+  setUpdatingId(id);
+  const now = new Date().toISOString();
+  const order = orders.find(o => o.id === id);
+
+  const history = [
+    ...(order?.status_history ?? []),
+    { status: newStatus, timestamp: now, message: TIMELINE_MESSAGES[newStatus] ?? newStatus },
+  ];
+
+  const { error } = await supabase
+    .from("orders")
+    .update({ 
+      status: newStatus, 
+      status_history: history 
+    })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Update error:", error);
+    toast.error(error.message); // shows exact DB error
+  } else {
+    toast.success(`Order marked as ${newStatus.replace(/_/g, " ")}`);
+    setOrders(prev =>
+      prev.map(o => o.id === id ? { ...o, status: newStatus, status_history: history } : o)
+    );
+    if (viewOrder?.id === id)
+      setViewOrder((p: any) => ({ ...p, status: newStatus, status_history: history }));
+  }
+  setUpdatingId(null);
+};
+
   const confirmShipping = async () => {
     if (!trackingNumber.trim()) { toast.error("Please enter a tracking number"); return; }
     const now = new Date().toISOString();
@@ -158,7 +157,6 @@ export default function OrdersPage() {
     ];
     const courierInfo = COURIERS.find(c => c.id === courier);
     const courierUrl  = courierInfo?.url ? `${courierInfo.url}${trackingNumber}` : null;
-
     const { error } = await supabase.from("orders").update({
       status:          "shipped",
       status_history:  history,
@@ -166,11 +164,8 @@ export default function OrdersPage() {
       courier:         courierInfo?.name,
       courier_url:     courierUrl,
     }).eq("id", shippingModal.id);
-    // ↑ Trigger fires → order_timeline gets "shipped" entry → customer sees it instantly
-
     if (error) { toast.error("Failed to update shipping"); return; }
-
-    toast.success("Order marked as shipped! Customer notified in real time. 🚚");
+    toast.success("Order marked as shipped! 🚚");
     const updated = {
       status: "shipped", status_history: history,
       tracking_number: trackingNumber,
@@ -181,39 +176,44 @@ export default function OrdersPage() {
     setShippingModal(null); setTrackingNumber(""); setCourier("jnt");
   };
 
-  const getNextStatus = (current: string) => {
-    const idx = statusFlow.indexOf(current);
-    if (idx === -1 || current === "cancelled" || current === "completed") return null;
-    const next = statusFlow[idx + 1];
-    return next === "cancelled" ? null : next;
-  };
+ const getNextStatus = (current: string) => {
+  if (current === "cancelled" || current === "completed") return null;
+  const idx = statusFlow.indexOf(current);
+  if (idx === -1 || idx === statusFlow.length - 1) return null;
+  const next = statusFlow[idx + 1];
+  // Skip cancelled as a next step
+  return next === "cancelled" ? null : next;
+};
 
-  const filtered = orders.filter(o =>
-    (o.customer_name || "").toLowerCase().includes(search.toLowerCase()) &&
-    (statusFilter === "all" || o.status === statusFilter)
-  );
+  const filtered = orders.filter(o => {
+    const matchSearch = (o.customer_name || "").toLowerCase().includes(search.toLowerCase());
+    if (showHidden) return matchSearch && o.is_deleted;
+    return matchSearch && !o.is_deleted && (statusFilter === "all" || o.status === statusFilter);
+  });
 
-  const totalRevenue = orders.reduce((s, o) => s + Number(o.total || 0), 0);
-  const completed    = orders.filter(o => o.status === "completed").length;
-  const pending      = orders.filter(o => o.status === "pending").length;
-  const shipped      = orders.filter(o => ["shipped","out_for_delivery"].includes(o.status)).length;
+  const visibleOrders  = orders.filter(o => !o.is_deleted);
+  const totalRevenue   = visibleOrders.reduce((s, o) => s + Number(o.total || 0), 0);
+  const completed      = visibleOrders.filter(o => o.status === "completed").length;
+  const pending        = visibleOrders.filter(o => o.status === "pending").length;
+  const shipped        = visibleOrders.filter(o => ["shipped","out_for_delivery"].includes(o.status)).length;
+  const hiddenCount    = orders.filter(o => o.is_deleted).length;
 
   return (
     <div className="min-h-screen p-6 space-y-6 text-white"
-      style={{ background:"linear-gradient(135deg,#0f1117,#141824,#0f1117)" }}>
+      style={{ background: "linear-gradient(135deg,#0f1117,#141824,#0f1117)" }}>
 
       <div>
         <h1 className="text-2xl font-bold tracking-wide">Orders</h1>
         <p className="text-xs text-slate-400">Manage & track all customer orders · Updates push to customers in real time</p>
       </div>
 
-      {/* ── KPI cards ── */}
+      {/* KPI cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label:"Total Orders", value:orders.length,                    icon:ShoppingCart, color:"text-blue-400" },
-          { label:"Revenue",      value:`₱${totalRevenue.toLocaleString()}`, icon:TrendingUp,   color:"text-emerald-400" },
-          { label:"Completed",    value:completed,                         icon:CheckCircle,  color:"text-green-400" },
-          { label:"In Transit",   value:shipped,                           icon:Truck,        color:"text-indigo-400" },
+          { label: "Total Orders", value: visibleOrders.length,                icon: ShoppingCart, color: "text-blue-400" },
+          { label: "Revenue",      value: `₱${totalRevenue.toLocaleString()}`, icon: TrendingUp,   color: "text-emerald-400" },
+          { label: "Completed",    value: completed,                            icon: CheckCircle,  color: "text-green-400" },
+          { label: "In Transit",   value: shipped,                              icon: Truck,        color: "text-indigo-400" },
         ].map(kpi => (
           <div key={kpi.label} className={`${card} p-5 transition-all hover:scale-[1.03]`}>
             <div className="flex justify-between items-center">
@@ -225,8 +225,8 @@ export default function OrdersPage() {
         ))}
       </div>
 
-      {/* ── Pending alert ── */}
-      {pending > 0 && (
+      {/* Pending alert */}
+      {pending > 0 && !showHidden && (
         <div className="flex items-center gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
           <Clock size={16} className="text-amber-400 shrink-0" />
           <p className="text-sm text-amber-300">
@@ -235,24 +235,57 @@ export default function OrdersPage() {
         </div>
       )}
 
-      {/* ── Orders table ── */}
+      {/* Hidden orders banner */}
+      {showHidden && (
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/20">
+          <Trash2 size={16} className="text-red-400 shrink-0" />
+          <p className="text-sm text-red-300">
+            Showing <span className="font-bold">{hiddenCount} hidden order{hiddenCount !== 1 ? "s" : ""}</span> — click <RotateCcw size={11} className="inline mx-0.5" /> to restore
+          </p>
+        </div>
+      )}
+
+      {/* Orders table */}
       <div className={`${card} p-5`}>
         <div className="flex gap-3 mb-4 flex-wrap">
+          {/* Search */}
           <div className="relative flex-1 min-w-[200px]">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-            <Input placeholder="Search by customer name..." value={search}
+            <Input
+              placeholder="Search by customer name..."
+              value={search}
               onChange={e => setSearch(e.target.value)}
-              className="pl-9 bg-white/5 border-white/10" />
+              className="pl-9 bg-white/5 border-white/10"
+            />
           </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[180px] bg-white/5 border-white/10">
-              <Filter size={14} /><SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              {statusFlow.map(s => <SelectItem key={s} value={s} className="capitalize">{s.replace("_"," ")}</SelectItem>)}
-            </SelectContent>
-          </Select>
+
+          {/* Status filter — hidden when viewing hidden orders */}
+          {!showHidden && (
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[180px] bg-white/5 border-white/10">
+                <Filter size={14} /><SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                {statusFlow.map(s => (
+                  <SelectItem key={s} value={s} className="capitalize">{s.replace("_", " ")}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {/* Toggle hidden orders */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => { setShowHidden(h => !h); setStatusFilter("all"); }}
+            className={`gap-1.5 text-xs transition-all ${
+              showHidden
+                ? "bg-red-500/20 text-red-300 border-red-500/30 hover:bg-red-500/30"
+                : "bg-white/5 text-slate-400 border-white/10 hover:bg-white/10"
+            }`}>
+            {showHidden ? <><RotateCcw size={12} /> Back to Orders</> : <><Trash2 size={12} /> Hidden {hiddenCount > 0 && `(${hiddenCount})`}</>}
+          </Button>
         </div>
 
         <div className="rounded-xl overflow-hidden">
@@ -273,15 +306,17 @@ export default function OrdersPage() {
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-16 text-slate-500">
                     <Package size={32} className="mx-auto mb-3 opacity-20" />
-                    No orders found
+                    {showHidden ? "No hidden orders" : "No orders found"}
                   </TableCell>
                 </TableRow>
               ) : filtered.map(o => {
                 const next = getNextStatus(o.status);
                 return (
-                  <TableRow key={o.id} className="border-white/5 hover:bg-white/5 transition-all">
+                  <TableRow
+                    key={o.id}
+                    className={`border-white/5 hover:bg-white/5 transition-all ${o.is_deleted ? "opacity-50" : ""}`}>
                     <TableCell className="font-mono text-xs text-indigo-400">
-                      #{o.id.slice(0,8).toUpperCase()}
+                      #{o.id.slice(0, 8).toUpperCase()}
                     </TableCell>
                     <TableCell>
                       <p className="text-sm font-medium">{o.customer_name}</p>
@@ -290,7 +325,7 @@ export default function OrdersPage() {
                     <TableCell className="font-bold">₱{Number(o.total).toLocaleString()}</TableCell>
                     <TableCell>
                       <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[o.status] || "bg-white/10 text-white"}`}>
-                        {STATUS_ICONS[o.status]} {o.status.replace("_"," ")}
+                        {STATUS_ICONS[o.status]} {o.status.replace("_", " ")}
                       </span>
                     </TableCell>
                     <TableCell className="text-xs">
@@ -302,25 +337,34 @@ export default function OrdersPage() {
                       ) : <span className="text-slate-600">—</span>}
                     </TableCell>
                     <TableCell className="text-slate-400 text-xs">
-                      {new Date(o.created_at).toLocaleDateString("en-PH", { month:"short", day:"numeric", year:"numeric" })}
+                      {new Date(o.created_at).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        {next && (
+                        {/* Advance status — only for visible orders */}
+                        {!o.is_deleted && next && (
                           <Button size="sm" variant="ghost" disabled={updatingId === o.id}
                             onClick={() => updateStatus(o.id, next)}
                             className="text-xs h-7 px-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 gap-1">
                             <ChevronRight size={12} />
-                            {next === "shipped" ? "Ship" : next.replace("_"," ")}
+                            {next === "shipped" ? "Ship" : next.replace("_", " ")}
                           </Button>
                         )}
-                        <Button size="icon" variant="ghost" className="h-7 w-7 hover:text-blue-400"
-                          onClick={() => setViewOrder(o)}>
-                          <Eye size={13} />
-                        </Button>
-                        <Button size="icon" variant="ghost" className="h-7 w-7 hover:text-red-400"
-                          onClick={() => deleteOrder(o.id)}>
-                          <Trash2 size={13} />
+                        {/* View */}
+                        {!o.is_deleted && (
+                          <Button size="icon" variant="ghost" className="h-7 w-7 hover:text-blue-400"
+                            onClick={() => setViewOrder(o)}>
+                            <Eye size={13} />
+                          </Button>
+                        )}
+                        {/* Hide / Restore */}
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title={o.is_deleted ? "Restore order" : "Hide order"}
+                          className={`h-7 w-7 transition-colors ${o.is_deleted ? "text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10" : "text-slate-500 hover:text-red-400 hover:bg-red-500/10"}`}
+                          onClick={() => deleteOrder(o.id, !!o.is_deleted)}>
+                          {o.is_deleted ? <RotateCcw size={13} /> : <Trash2 size={13} />}
                         </Button>
                       </div>
                     </TableCell>
@@ -332,25 +376,23 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* ── View Order Modal ── */}
+      {/* View Order Modal */}
       <Dialog open={!!viewOrder} onOpenChange={() => setViewOrder(null)}>
         <DialogContent className="bg-[#111827] text-white border-white/10 max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogTitle className="flex items-center gap-2">
             <Package size={16} className="text-indigo-400" />
-            Order #{viewOrder?.id?.slice(0,8).toUpperCase()}
+            Order #{viewOrder?.id?.slice(0, 8).toUpperCase()}
           </DialogTitle>
           {viewOrder && (
             <div className="text-sm space-y-5">
-
-              {/* Basic info */}
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { label:"Customer",  value:viewOrder.customer_name },
-                  { label:"Email",     value:viewOrder.customer_email, small:true },
-                  { label:"Total",     value:`₱${Number(viewOrder.total).toLocaleString()}`, green:true },
-                  { label:"Payment",   value:`${viewOrder.payment_method ?? "—"} · ${viewOrder.payment_status ?? "—"}` },
-                  { label:"Date",      value:new Date(viewOrder.created_at).toLocaleDateString("en-PH",{month:"long",day:"numeric",year:"numeric"}) },
-                  { label:"Status",    value:viewOrder.status?.replace("_"," "), badge:true },
+                  { label: "Customer", value: viewOrder.customer_name },
+                  { label: "Email",    value: viewOrder.customer_email, small: true },
+                  { label: "Total",    value: `₱${Number(viewOrder.total).toLocaleString()}`, green: true },
+                  { label: "Payment",  value: `${viewOrder.payment_method ?? "—"} · ${viewOrder.payment_status ?? "—"}` },
+                  { label: "Date",     value: new Date(viewOrder.created_at).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" }) },
+                  { label: "Status",   value: viewOrder.status?.replace("_", " "), badge: true },
                 ].map(f => (
                   <div key={f.label}>
                     <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">{f.label}</p>
@@ -365,7 +407,7 @@ export default function OrdersPage() {
                 ))}
               </div>
 
-              {/* Tracking box */}
+              {/* Tracking */}
               {viewOrder.tracking_number && (
                 <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
                   <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
@@ -382,7 +424,7 @@ export default function OrdersPage() {
                 </div>
               )}
 
-              {/* Timeline — sourced from order_timeline table */}
+              {/* Timeline */}
               <div>
                 <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-3">Order Timeline</p>
                 {viewOrder.order_timeline && viewOrder.order_timeline.length > 0 ? (
@@ -393,34 +435,31 @@ export default function OrdersPage() {
                         <div key={entry.id} className="flex items-start gap-3">
                           <div className="flex flex-col items-center">
                             <div className={`w-3 h-3 rounded-full mt-0.5 shrink-0 ring-2 ${i === 0 ? "bg-indigo-400 ring-indigo-400/30" : "bg-emerald-400 ring-emerald-400/20"}`} />
-                            {i < viewOrder.order_timeline.length - 1 && (
-                              <div className="w-px h-6 bg-emerald-400/20" />
-                            )}
+                            {i < viewOrder.order_timeline.length - 1 && <div className="w-px h-6 bg-emerald-400/20" />}
                           </div>
                           <div className="pb-1">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${STATUS_COLORS[entry.status] || "bg-white/10 text-white"}`}>
-                                {STATUS_ICONS[entry.status]} {entry.status.replace("_"," ")}
+                                {STATUS_ICONS[entry.status]} {entry.status.replace("_", " ")}
                               </span>
                             </div>
                             <p className="text-xs text-slate-400 mt-0.5">{entry.message}</p>
                             <p className="text-[10px] text-slate-600 mt-0.5">
-                              {new Date(entry.created_at).toLocaleString("en-PH", { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" })}
+                              {new Date(entry.created_at).toLocaleString("en-PH", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                             </p>
                           </div>
                         </div>
                       ))}
                   </div>
                 ) : (
-                  // Fallback to status_history if order_timeline is empty
                   <div className="space-y-0">
                     {statusFlow.filter(s => s !== "cancelled").map((s, i, arr) => {
-                      const history = viewOrder.status_history || [];
-                      const entry   = history.find((h: any) => h.status === s);
+                      const history    = viewOrder.status_history || [];
+                      const entry      = history.find((h: any) => h.status === s);
                       const currentIdx = statusFlow.indexOf(viewOrder.status);
                       const stepIdx    = statusFlow.indexOf(s);
-                      const isDone   = currentIdx >= stepIdx && viewOrder.status !== "cancelled";
-                      const isCurrent = viewOrder.status === s;
+                      const isDone     = currentIdx >= stepIdx && viewOrder.status !== "cancelled";
+                      const isCurrent  = viewOrder.status === s;
                       return (
                         <div key={s} className="flex items-start gap-3">
                           <div className="flex flex-col items-center">
@@ -429,7 +468,7 @@ export default function OrdersPage() {
                           </div>
                           <div className="pb-1">
                             <p className={`text-xs capitalize font-medium ${isCurrent ? "text-indigo-400" : isDone ? "text-emerald-400" : "text-slate-600"}`}>
-                              {s.replace("_"," ")}
+                              {s.replace("_", " ")}
                             </p>
                             {entry?.timestamp && (
                               <p className="text-[10px] text-slate-500">{new Date(entry.timestamp).toLocaleString()}</p>
@@ -462,7 +501,7 @@ export default function OrdersPage() {
                             {item.selected_color && (
                               <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-slate-400 flex items-center gap-1">
                                 {item.selected_color_hex && (
-                                  <span style={{ background:item.selected_color_hex }}
+                                  <span style={{ background: item.selected_color_hex }}
                                     className="w-2 h-2 rounded-full border border-white/20 inline-block" />
                                 )}
                                 {item.selected_color}
@@ -500,23 +539,22 @@ export default function OrdersPage() {
                   <Button className="w-full bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/20"
                     onClick={() => updateStatus(viewOrder.id, getNextStatus(viewOrder.status)!)}>
                     <ChevronRight size={14} className="mr-1" />
-                    Mark as {getNextStatus(viewOrder.status)?.replace("_"," ")} →
+                    Mark as {getNextStatus(viewOrder.status)?.replace("_", " ")} →
                   </Button>
                 )}
-                {!["completed","cancelled"].includes(viewOrder.status) && (
+                {!["completed", "cancelled"].includes(viewOrder.status) && (
                   <Button variant="ghost" className="w-full text-red-400 hover:bg-red-500/10 border border-red-500/10"
                     onClick={() => { updateStatus(viewOrder.id, "cancelled"); setViewOrder(null); }}>
                     <AlertCircle size={14} className="mr-1" /> Cancel Order
                   </Button>
                 )}
               </div>
-
             </div>
           )}
         </DialogContent>
       </Dialog>
 
-      {/* ── Shipping Modal ── */}
+      {/* Shipping Modal */}
       <Dialog open={!!shippingModal} onOpenChange={() => { setShippingModal(null); setTrackingNumber(""); }}>
         <DialogContent className="bg-[#111827] text-white border-white/10 max-w-sm">
           <DialogTitle className="flex items-center gap-2">
@@ -526,7 +564,7 @@ export default function OrdersPage() {
             <div className="p-3 rounded-xl bg-white/5 border border-white/10">
               <p className="text-xs text-slate-400 mb-0.5">Shipping for</p>
               <p className="font-medium">{shippingModal?.customer_name}</p>
-              <p className="text-xs text-slate-400">Order #{shippingModal?.id?.slice(0,8).toUpperCase()}</p>
+              <p className="text-xs text-slate-400">Order #{shippingModal?.id?.slice(0, 8).toUpperCase()}</p>
             </div>
             <div>
               <label className="text-xs text-slate-400 block mb-1.5">Courier</label>
@@ -561,4 +599,4 @@ export default function OrdersPage() {
       </Dialog>
     </div>
   );
-}   
+}

@@ -21,25 +21,30 @@ const ProfilePage = () => {
   const navigate = useNavigate();
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [orders, setOrders] = useState<any[]>([]);
-  const [profile, setProfile] = useState<any>(null);
+  const [orders, setOrders]               = useState<any[]>([]);
+  const [profile, setProfile]             = useState<any>(null);
   const [wishlistCount, setWishlistCount] = useState(0);
-  const [addressCount, setAddressCount] = useState(0);
-  const [editing, setEditing] = useState(false);
-  const [editName, setEditName] = useState("");
-  const [editPhone, setEditPhone] = useState("");
-  const [editBirthday, setEditBirthday] = useState("");
-  const [editGender, setEditGender] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [addressCount, setAddressCount]   = useState(0);
+  const [editing, setEditing]             = useState(false);
+  const [editName, setEditName]           = useState("");
+  const [editPhone, setEditPhone]         = useState("");
+  const [editBirthday, setEditBirthday]   = useState("");
+  const [editGender, setEditGender]       = useState("");
+  const [loading, setLoading]             = useState(true);
   const [activeSection, setActiveSection] = useState<SidebarSection>("profile");
   const [activeOrderTab, setActiveOrderTab] = useState(0);
-  const [avatarUrl, setAvatarUrl] = useState("");
+  const [avatarUrl, setAvatarUrl]         = useState("");
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) { setLoading(false); return; }
+
     Promise.all([
-      supabase.from("orders").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+      supabase
+        .from("orders")
+        .select("*, order_items(*)")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false }),
       supabase.from("profiles").select("*").eq("user_id", user.id).maybeSingle(),
       supabase.from("wishlist").select("id", { count: "exact" }).eq("user_id", user.id),
       supabase.from("addresses").select("id", { count: "exact" }).eq("user_id", user.id),
@@ -53,8 +58,29 @@ const ProfilePage = () => {
       setAvatarUrl(profileRes.data?.avatar_url || "");
       setWishlistCount(wishlistRes.count || 0);
       setAddressCount(addressRes.count || 0);
+    }).catch(err => {
+      console.error("Profile load error:", err);
+    }).finally(() => {
       setLoading(false);
     });
+
+    // ── Realtime: re-fetch orders when admin updates status ──
+    const channel = supabase
+      .channel("profile-orders-realtime")
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "orders",
+        filter: `user_id=eq.${user.id}`,
+      }, (payload) => {
+        // Update just the changed order in state instantly
+        setOrders(prev =>
+          prev.map(o => o.id === payload.new.id ? { ...o, ...payload.new } : o)
+        );
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [user]);
 
   if (!user) {
@@ -69,20 +95,69 @@ const ProfilePage = () => {
     );
   }
 
-  const pendingOrders = orders.filter(o => o.status === "pending");
-  const processingOrders = orders.filter(o => o.status === "processing");
-  const shippedOrders = orders.filter(o => o.status === "shipped");
-  const completedOrders = orders.filter(o => o.status === "completed");
-  const cancelledOrders = orders.filter(o => o.status === "cancelled");
+  // ── Status groupings matching admin's exact status flow ──
+  const pendingOrders    = orders.filter(o => o.status === "pending");
+  const processingOrders = orders.filter(o => ["confirmed", "packed"].includes(o.status));
+  const shippedOrders    = orders.filter(o => ["shipped", "out_for_delivery", "delivered", "arrived"].includes(o.status));
+  const completedOrders  = orders.filter(o => o.status === "completed");
+  const cancelledOrders  = orders.filter(o => o.status === "cancelled");
 
   const orderTabs = [
-    { label: "All", icon: Package, orders: orders },
-    { label: "Pending", icon: Clock, orders: pendingOrders },
-    { label: "Processing", icon: Package, orders: processingOrders },
-    { label: "Shipped", icon: Truck, orders: shippedOrders },
-    { label: "Completed", icon: CheckCircle, orders: completedOrders },
-    { label: "Cancelled", icon: XCircle, orders: cancelledOrders },
+    { label: "All",        icon: Package,     orders: orders },
+    { label: "Pending",    icon: Clock,       orders: pendingOrders },
+    { label: "Processing", icon: Package,     orders: processingOrders },
+    { label: "Shipped",    icon: Truck,       orders: shippedOrders },
+    { label: "Completed",  icon: CheckCircle, orders: completedOrders },
+    { label: "Cancelled",  icon: XCircle,     orders: cancelledOrders },
   ];
+
+  // ── Progress bar steps matching admin's status flow ──
+  const orderStatusSteps = ["Pending", "Confirmed", "Packed", "Shipped", "Delivered", "Completed"];
+
+  const getStatusStep = (status: string) => {
+    const map: Record<string, number> = {
+      pending:          0,
+      confirmed:        1,
+      packed:           2,
+      shipped:          3,
+      out_for_delivery: 3,
+      delivered:        4,
+      arrived:          4,
+      completed:        5,
+    };
+    return map[status] ?? 0;
+  };
+
+  // ── Status label + color for the badge ──
+  const getStatusStyle = (status: string) => {
+    const styles: Record<string, string> = {
+      pending:          "bg-amber-100 text-amber-700",
+      confirmed:        "bg-blue-100 text-blue-700",
+      packed:           "bg-violet-100 text-violet-700",
+      shipped:          "bg-indigo-100 text-indigo-700",
+      out_for_delivery: "bg-sky-100 text-sky-700",
+      delivered:        "bg-cyan-100 text-cyan-700",
+      arrived:          "bg-teal-100 text-teal-700",
+      completed:        "bg-green-100 text-green-700",
+      cancelled:        "bg-red-100 text-red-600",
+    };
+    return styles[status] || "bg-primary/10 text-primary";
+  };
+
+  const getStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      pending:          "Pending",
+      confirmed:        "Confirmed",
+      packed:           "Being Packed",
+      shipped:          "Shipped",
+      out_for_delivery: "Out for Delivery",
+      delivered:        "Delivered",
+      arrived:          "Arrived",
+      completed:        "Completed",
+      cancelled:        "Cancelled",
+    };
+    return labels[status] || status;
+  };
 
   const handleSaveProfile = async () => {
     const { error } = await supabase.from("profiles").update({
@@ -116,33 +191,26 @@ const ProfilePage = () => {
     {
       group: "Account",
       items: [
-        { id: "profile" as SidebarSection, label: "My Profile", icon: User },
-        { id: "addresses" as SidebarSection, label: "Addresses", icon: MapPin, badge: addressCount },
-        { id: "notifications" as SidebarSection, label: "Notifications", icon: Bell },
-        { id: "vouchers" as SidebarSection, label: "Vouchers", icon: Ticket },
+        { id: "profile" as SidebarSection,       label: "My Profile",    icon: User },
+        { id: "addresses" as SidebarSection,      label: "Addresses",     icon: MapPin,  badge: addressCount },
+        { id: "notifications" as SidebarSection,  label: "Notifications", icon: Bell },
+        { id: "vouchers" as SidebarSection,       label: "Vouchers",      icon: Ticket },
       ]
     },
     {
       group: "Shopping",
       items: [
-        { id: "orders" as SidebarSection, label: "My Orders", icon: Package, badge: orders.length },
-        { id: "wishlist" as SidebarSection, label: "Wishlist", icon: Heart, badge: wishlistCount },
+        { id: "orders" as SidebarSection,   label: "My Orders", icon: Package, badge: orders.length },
+        { id: "wishlist" as SidebarSection, label: "Wishlist",  icon: Heart,   badge: wishlistCount },
       ]
     }
   ];
-
-  const orderStatusSteps = ["Pending", "Processing", "Shipped", "Completed"];
-
-  const getStatusStep = (status: string) => {
-    const map: Record<string, number> = { pending: 0, processing: 1, shipped: 2, completed: 3 };
-    return map[status] ?? 0;
-  };
 
   return (
     <div className="pt-20 pb-16 bg-muted min-h-screen">
       <div className="container mx-auto max-w-6xl px-4">
 
-        {/* ── Shopee-style order status bar at top ── */}
+        {/* ── Order status bar ── */}
         <div className="bg-card border border-border/50 rounded-xl mb-6 p-4 sm:p-6">
           <div className="flex items-center justify-between mb-1">
             <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">My Orders</p>
@@ -152,19 +220,19 @@ const ProfilePage = () => {
           </div>
           <div className="grid grid-cols-5 gap-2 mt-3">
             {[
-              { label: "Pending", icon: Clock, count: pendingOrders.length, tab: 1 },
-              { label: "Processing", icon: Package, count: processingOrders.length, tab: 2 },
-              { label: "Shipped", icon: Truck, count: shippedOrders.length, tab: 3 },
-              { label: "Completed", icon: CheckCircle, count: completedOrders.length, tab: 4 },
-              { label: "Cancelled", icon: XCircle, count: cancelledOrders.length, tab: 5 },
-            ].map(({ label, icon: Icon, count, tab }) => (
+              { label: "Pending",    icon: Clock,       orders: pendingOrders,    tab: 1 },
+              { label: "Processing", icon: Package,     orders: processingOrders, tab: 2 },
+              { label: "Shipped",    icon: Truck,       orders: shippedOrders,    tab: 3 },
+              { label: "Completed",  icon: CheckCircle, orders: completedOrders,  tab: 4 },
+              { label: "Cancelled",  icon: XCircle,     orders: cancelledOrders,  tab: 5 },
+            ].map(({ label, icon: Icon, orders: tabOrders, tab }) => (
               <button key={label} onClick={() => { setActiveSection("orders"); setActiveOrderTab(tab); }}
                 className="flex flex-col items-center gap-1.5 p-2 rounded-lg hover:bg-muted transition-colors relative">
                 <div className="relative">
                   <Icon size={22} className="text-primary" />
-                  {count > 0 && (
+                  {tabOrders.length > 0 && (
                     <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                      {count}
+                      {tabOrders.length}
                     </span>
                   )}
                 </div>
@@ -177,7 +245,6 @@ const ProfilePage = () => {
         <div className="flex gap-6">
           {/* ── Sidebar ── */}
           <aside className="hidden md:block w-56 shrink-0">
-            {/* Avatar + name */}
             <div className="flex items-center gap-3 mb-6 px-1">
               <div className="relative shrink-0">
                 <div className="w-12 h-12 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center border-2 border-primary/20">
@@ -205,14 +272,9 @@ const ProfilePage = () => {
                 {group.items.map(({ id, label, icon: Icon, badge }) => (
                   <button key={id} onClick={() => setActiveSection(id)}
                     className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition-colors mb-0.5 ${
-                      activeSection === id
-                        ? "bg-primary/10 text-primary font-medium"
-                        : "text-foreground hover:bg-muted"
+                      activeSection === id ? "bg-primary/10 text-primary font-medium" : "text-foreground hover:bg-muted"
                     }`}>
-                    <span className="flex items-center gap-2.5">
-                      <Icon size={16} />
-                      {label}
-                    </span>
+                    <span className="flex items-center gap-2.5"><Icon size={16} />{label}</span>
                     {badge !== undefined && badge > 0 && (
                       <span className="bg-primary/10 text-primary text-[10px] font-bold px-1.5 py-0.5 rounded-full">{badge}</span>
                     )}
@@ -244,7 +306,6 @@ const ProfilePage = () => {
                 </div>
                 <div className="p-6">
                   <div className="flex flex-col sm:flex-row gap-8">
-                    {/* Form */}
                     <div className="flex-1 space-y-5">
                       <div className="grid grid-cols-1 gap-4">
                         <div>
@@ -285,9 +346,7 @@ const ProfilePage = () => {
                                 {["Male", "Female", "Other"].map(g => (
                                   <button key={g} onClick={() => setEditGender(g)}
                                     className={`px-4 py-1.5 rounded-full text-sm border transition-colors ${
-                                      editGender === g
-                                        ? "border-primary bg-primary/10 text-primary font-medium"
-                                        : "border-border text-muted-foreground hover:border-primary/50"
+                                      editGender === g ? "border-primary bg-primary/10 text-primary font-medium" : "border-border text-muted-foreground hover:border-primary/50"
                                     }`}>{g}</button>
                                 ))}
                               </div>
@@ -296,7 +355,6 @@ const ProfilePage = () => {
                           }
                         </div>
                       </div>
-
                       <div className="flex gap-3 pt-2">
                         {editing ? (
                           <>
@@ -312,8 +370,6 @@ const ProfilePage = () => {
                         )}
                       </div>
                     </div>
-
-                    {/* Avatar */}
                     <div className="flex flex-col items-center gap-3 sm:w-40">
                       <div className="w-24 h-24 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center border-2 border-border">
                         {avatarUrl
@@ -321,8 +377,7 @@ const ProfilePage = () => {
                           : <span className="font-heading text-4xl text-primary">{initials}</span>
                         }
                       </div>
-                      <button onClick={() => fileRef.current?.click()}
-                        disabled={uploadingAvatar}
+                      <button onClick={() => fileRef.current?.click()} disabled={uploadingAvatar}
                         className="flex items-center gap-1.5 text-sm border border-border px-4 py-1.5 rounded-lg hover:bg-muted transition-colors text-foreground">
                         <Camera size={14} /> {uploadingAvatar ? "Uploading..." : "Select Image"}
                       </button>
@@ -339,14 +394,13 @@ const ProfilePage = () => {
                 <div className="px-6 py-5 border-b border-border/50">
                   <h2 className="font-heading text-lg uppercase tracking-wider text-foreground">My Orders</h2>
                 </div>
-                {/* Order tabs */}
+
+                {/* Tabs */}
                 <div className="flex overflow-x-auto border-b border-border/50">
                   {orderTabs.map((tab, i) => (
                     <button key={tab.label} onClick={() => setActiveOrderTab(i)}
                       className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${
-                        activeOrderTab === i
-                          ? "border-primary text-primary"
-                          : "border-transparent text-muted-foreground hover:text-foreground"
+                        activeOrderTab === i ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
                       }`}>
                       {tab.label}
                       {tab.orders.length > 0 && (
@@ -357,90 +411,142 @@ const ProfilePage = () => {
                     </button>
                   ))}
                 </div>
+
                 <div className="p-4">
                   {loading ? (
-                    <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>
+                    <div className="flex justify-center py-12">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+                    </div>
                   ) : orderTabs[activeOrderTab].orders.length === 0 ? (
                     <div className="text-center py-16">
                       <Package size={48} className="mx-auto text-muted-foreground/30 mb-3" />
                       <p className="text-muted-foreground">No {orderTabs[activeOrderTab].label.toLowerCase()} orders</p>
-                      <Link to="/shop"><Button variant="outline" size="sm" className="mt-4 font-heading uppercase tracking-wider">Shop Now</Button></Link>
+                      <Link to="/shop">
+                        <Button variant="outline" size="sm" className="mt-4 font-heading uppercase tracking-wider">Shop Now</Button>
+                      </Link>
                     </div>
                   ) : (
                     <div className="space-y-4">
                       {orderTabs[activeOrderTab].orders.map((order: any) => {
                         const step = getStatusStep(order.status);
                         const isCancelled = order.status === "cancelled";
+                        const orderItems = Array.isArray(order.order_items) ? order.order_items : [];
+
                         return (
                           <div key={order.id} className="border border-border/50 rounded-xl overflow-hidden">
+
                             {/* Order header */}
                             <div className="flex items-center justify-between px-4 py-3 bg-muted/40 border-b border-border/50">
-                              <p className="text-xs font-mono text-muted-foreground">Order #{order.id.slice(0, 8).toUpperCase()}</p>
+                              <p className="text-xs font-mono text-muted-foreground">
+                                Order #{order.id.slice(0, 8).toUpperCase()}
+                              </p>
                               <div className="flex items-center gap-3">
-                                <p className="text-xs text-muted-foreground">{new Date(order.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
-                                <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full uppercase tracking-wide ${
-                                  isCancelled ? "bg-red-100 text-red-600" :
-                                  order.status === "completed" ? "bg-green-100 text-green-700" :
-                                  "bg-primary/10 text-primary"
-                                }`}>{order.status}</span>
+                                <p className="text-xs text-muted-foreground">
+                                  {new Date(order.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                                </p>
+                                {/* ── Live status badge matching admin ── */}
+                                <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full uppercase tracking-wide ${getStatusStyle(order.status)}`}>
+                                  {getStatusLabel(order.status)}
+                                </span>
                               </div>
                             </div>
 
                             {/* Items */}
                             <div className="px-4 py-3 space-y-2">
-                              {(Array.isArray(order.items) ? order.items : []).slice(0, 3).map((item: any, i: number) => (
+                              {orderItems.slice(0, 3).map((item: any, i: number) => (
                                 <div key={i} className="flex items-center gap-3">
-                                  <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center shrink-0">
-                                    {item.image_url
-                                      ? <img src={item.image_url} alt={item.name} className="w-full h-full object-cover rounded-lg" />
+                                  <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
+                                    {item.product_image
+                                      ? <img src={item.product_image} alt={item.product_name} className="w-full h-full object-cover" />
                                       : <Package size={18} className="text-muted-foreground/50" />
                                     }
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <p className="text-sm text-foreground truncate">{item.name}</p>
-                                    <p className="text-xs text-muted-foreground">x{item.quantity}</p>
+                                    <p className="text-sm text-foreground truncate">{item.product_name}</p>
+                                    <div className="flex gap-2 mt-0.5">
+                                      {item.selected_size && (
+                                        <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                                          {item.selected_size}
+                                        </span>
+                                      )}
+                                      {item.selected_color && (
+                                        <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded flex items-center gap-1">
+                                          {item.selected_color_hex && (
+                                            <span style={{ background: item.selected_color_hex }}
+                                              className="w-2 h-2 rounded-full inline-block border border-border" />
+                                          )}
+                                          {item.selected_color}
+                                        </span>
+                                      )}
+                                      <span className="text-[10px] text-muted-foreground">x{item.quantity}</span>
+                                    </div>
                                   </div>
-                                  <p className="text-sm font-medium text-foreground shrink-0">₱{Number(item.price * item.quantity).toLocaleString()}</p>
+                                  <p className="text-sm font-medium text-foreground shrink-0">
+                                    ₱{Number(item.price * item.quantity).toLocaleString()}
+                                  </p>
                                 </div>
                               ))}
-                              {(order.items as any[])?.length > 3 && (
-                                <p className="text-xs text-primary pl-15">+{(order.items as any[]).length - 3} more items</p>
+                              {orderItems.length > 3 && (
+                                <p className="text-xs text-primary">+{orderItems.length - 3} more items</p>
+                              )}
+                              {orderItems.length === 0 && (
+                                <p className="text-xs text-muted-foreground italic">No item details available</p>
                               )}
                             </div>
 
-                            {/* Progress tracker */}
+                            {/* ── Progress tracker ── */}
                             {!isCancelled && (
-                              <div className="px-4 py-3 border-t border-border/50">
-                                <div className="flex items-center justify-between relative">
-                                  <div className="absolute left-0 right-0 top-3 h-0.5 bg-border mx-8" />
+                              <div className="px-4 py-4 border-t border-border/50 bg-muted/20">
+                                <div className="flex items-start justify-between relative">
+                                  {/* background line */}
+                                  <div className="absolute left-0 right-0 top-3 h-0.5 bg-border mx-3" />
+                                  {/* filled line */}
                                   <div
-                                    className="absolute left-0 top-3 h-0.5 bg-primary mx-8 transition-all duration-500"
-                                    style={{ width: `${(step / (orderStatusSteps.length - 1)) * 100}%`, right: "auto" }}
+                                    className="absolute top-3 h-0.5 bg-primary transition-all duration-700 mx-3"
+                                    style={{
+                                      left: 0,
+                                      width: `${(step / (orderStatusSteps.length - 1)) * 100}%`,
+                                    }}
                                   />
                                   {orderStatusSteps.map((s, i) => (
-                                    <div key={s} className="flex flex-col items-center gap-1 relative z-10">
-                                      <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-colors ${
-                                        i <= step ? "bg-primary border-primary" : "bg-card border-border"
+                                    <div key={s} className="flex flex-col items-center gap-1.5 relative z-10 flex-1">
+                                      <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-all duration-500 ${
+                                        i < step  ? "bg-primary border-primary" :
+                                        i === step ? "bg-primary border-primary ring-4 ring-primary/20" :
+                                        "bg-card border-border"
                                       }`}>
                                         {i < step && <CheckCircle size={12} className="text-primary-foreground" />}
                                         {i === step && <div className="w-2 h-2 rounded-full bg-primary-foreground" />}
                                       </div>
-                                      <span className={`text-[10px] whitespace-nowrap ${i <= step ? "text-primary font-medium" : "text-muted-foreground"}`}>{s}</span>
+                                      <span className={`text-[9px] text-center leading-tight whitespace-nowrap ${
+                                        i <= step ? "text-primary font-semibold" : "text-muted-foreground"
+                                      }`}>{s}</span>
                                     </div>
                                   ))}
                                 </div>
                               </div>
                             )}
 
+                            {/* Cancelled banner */}
+                            {isCancelled && (
+                              <div className="px-4 py-3 border-t border-border/50 bg-red-50 flex items-center gap-2">
+                                <XCircle size={14} className="text-red-500 shrink-0" />
+                                <p className="text-xs text-red-600 font-medium">This order has been cancelled</p>
+                              </div>
+                            )}
+
                             {/* Footer */}
-                            <div className="flex items-center justify-between px-4 py-3 border-t border-border/50 bg-muted/20">
+                            <div className="flex items-center justify-between px-4 py-3 border-t border-border/50">
                               <div>
                                 {order.tracking_number && (
-                                  <p className="text-xs text-muted-foreground">📦 Tracking: <span className="text-primary font-mono">{order.tracking_number}</span></p>
+                                  <p className="text-xs text-muted-foreground">
+                                    📦 Tracking: <span className="text-primary font-mono font-medium">{order.tracking_number}</span>
+                                    {order.courier && <span className="text-muted-foreground ml-1">· {order.courier}</span>}
+                                  </p>
                                 )}
                               </div>
-                              <div className="flex items-center gap-3">
-                                <p className="text-xs text-muted-foreground">Order Total:</p>
+                              <div className="flex items-center gap-2">
+                                <p className="text-xs text-muted-foreground">Total:</p>
                                 <p className="font-heading text-base text-primary">₱{Number(order.total).toLocaleString()}</p>
                               </div>
                             </div>
@@ -453,7 +559,7 @@ const ProfilePage = () => {
               </div>
             )}
 
-            {/* ─── Wishlist Section ─── */}
+            {/* ─── Wishlist ─── */}
             {activeSection === "wishlist" && (
               <div className="bg-card border border-border/50 rounded-xl overflow-hidden">
                 <div className="px-6 py-5 border-b border-border/50 flex items-center justify-between">
@@ -468,7 +574,7 @@ const ProfilePage = () => {
               </div>
             )}
 
-            {/* ─── Addresses Section ─── */}
+            {/* ─── Addresses ─── */}
             {activeSection === "addresses" && (
               <div className="bg-card border border-border/50 rounded-xl overflow-hidden">
                 <div className="px-6 py-5 border-b border-border/50 flex items-center justify-between">
@@ -483,35 +589,49 @@ const ProfilePage = () => {
               </div>
             )}
 
-            {/* ─── Notifications Section ─── */}
+            {/* ─── Notifications ─── */}
             {activeSection === "notifications" && (
               <div className="bg-card border border-border/50 rounded-xl overflow-hidden">
                 <div className="px-6 py-5 border-b border-border/50">
                   <h2 className="font-heading text-lg uppercase tracking-wider text-foreground">Notifications</h2>
                 </div>
                 <div className="divide-y divide-border/50">
-                  {orders.slice(0, 5).map((order: any) => (
-                    <div key={order.id} className="flex items-start gap-4 px-6 py-4 hover:bg-muted/30 transition-colors">
-                      <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                        <Package size={16} className="text-primary" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-foreground">Your order <span className="font-medium">#{order.id.slice(0, 8).toUpperCase()}</span> is <span className="text-primary font-medium">{order.status}</span>.</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">{new Date(order.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
-                      </div>
-                    </div>
-                  ))}
-                  {orders.length === 0 && (
+                  {orders.length === 0 ? (
                     <div className="text-center py-16">
                       <Bell size={48} className="mx-auto text-muted-foreground/30 mb-3" />
                       <p className="text-muted-foreground">No notifications yet</p>
                     </div>
-                  )}
+                  ) : orders.slice(0, 10).map((order: any) => (
+                    <div key={order.id} className="flex items-start gap-4 px-6 py-4 hover:bg-muted/30 transition-colors">
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${getStatusStyle(order.status)}`}>
+                        {order.status === "shipped" || order.status === "out_for_delivery" ? <Truck size={15} /> :
+                         order.status === "completed" ? <CheckCircle size={15} /> :
+                         order.status === "cancelled" ? <XCircle size={15} /> :
+                         <Package size={15} />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-foreground">
+                          Your order <span className="font-medium">#{order.id.slice(0, 8).toUpperCase()}</span> is{" "}
+                          <span className={`font-semibold ${getStatusStyle(order.status).split(" ")[1]}`}>
+                            {getStatusLabel(order.status)}
+                          </span>.
+                        </p>
+                        {order.tracking_number && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Tracking: <span className="font-mono text-primary">{order.tracking_number}</span>
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {new Date(order.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
 
-            {/* ─── Vouchers Section ─── */}
+            {/* ─── Vouchers ─── */}
             {activeSection === "vouchers" && (
               <div className="bg-card border border-border/50 rounded-xl overflow-hidden">
                 <div className="px-6 py-5 border-b border-border/50">
@@ -531,24 +651,22 @@ const ProfilePage = () => {
         {/* Mobile bottom nav */}
         <div className="md:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border flex z-50">
           {[
-            { id: "profile" as SidebarSection, icon: User, label: "Profile" },
-            { id: "orders" as SidebarSection, icon: Package, label: "Orders" },
-            { id: "wishlist" as SidebarSection, icon: Heart, label: "Wishlist" },
-            { id: "addresses" as SidebarSection, icon: MapPin, label: "Address" },
-            { id: "notifications" as SidebarSection, icon: Bell, label: "Alerts" },
+            { id: "profile" as SidebarSection,       icon: User,    label: "Profile" },
+            { id: "orders" as SidebarSection,         icon: Package, label: "Orders" },
+            { id: "wishlist" as SidebarSection,       icon: Heart,   label: "Wishlist" },
+            { id: "addresses" as SidebarSection,      icon: MapPin,  label: "Address" },
+            { id: "notifications" as SidebarSection,  icon: Bell,    label: "Alerts" },
           ].map(({ id, icon: Icon, label }) => (
             <button key={id} onClick={() => setActiveSection(id)}
               className={`flex-1 flex flex-col items-center gap-0.5 py-2 text-[10px] transition-colors ${
                 activeSection === id ? "text-primary" : "text-muted-foreground"
               }`}>
-              <Icon size={18} />
-              {label}
+              <Icon size={18} />{label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Hidden file input */}
       <input ref={fileRef} type="file" accept="image/*" className="hidden"
         onChange={(e) => e.target.files?.[0] && uploadAvatar(e.target.files[0])} />
     </div>
