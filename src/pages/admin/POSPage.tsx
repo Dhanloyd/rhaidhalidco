@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Minus, ShoppingCart, Trash2, CreditCard, Receipt, Barcode, X, Search, Ruler, Scale } from "lucide-react";
+import { Plus, Minus, ShoppingCart, Trash2, CreditCard, Receipt, Barcode, X, Search, Ruler, Scale, Loader2, PackageX } from "lucide-react";
 
 interface Product {
   id: string;
@@ -268,6 +268,13 @@ const POSPage = () => {
   const [discountAmount, setDiscountAmount] = useState(0);
   const [variantProduct, setVariantProduct] = useState<Product | null>(null);
   const [variantOpen, setVariantOpen]       = useState(false);
+
+  // ── NEW: loading & error state for product fetch ──────────────────────────
+  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [productError, setProductError]       = useState<string | null>(null);
+  const [totalInDB, setTotalInDB]             = useState<number | null>(null);
+  // ─────────────────────────────────────────────────────────────────────────
+
   const [receiptSettings, setReceiptSettings] = useState<ReceiptSettings>({
     company_name: "My Company", address: "", tin_no: "", vat_rate: 12, logo_url: null,
   });
@@ -275,14 +282,41 @@ const POSPage = () => {
 
   useEffect(() => { fetchProducts(); fetchReceiptSettings(); }, []);
 
+  // ── UPDATED: fetchProducts with loading + error + diagnostic count ────────
   const fetchProducts = async () => {
-    const { data } = await supabase
-      .from("products")
-      .select("id, name, price, category, image_url, barcode, sku, stock_quantity, available_sizes, available_colors, available_waist_sizes, available_lengths, brand, weight, dimensions")
-      .eq("in_stock", true)
-      .order("name");
-    setProducts(data || []);
+    setLoadingProducts(true);
+    setProductError(null);
+
+    try {
+      // Main query — only in-stock products
+      const { data, error } = await supabase
+        .from("products")
+        .select("id, name, price, category, image_url, barcode, sku, stock_quantity, available_sizes, available_colors, available_waist_sizes, available_lengths, brand, weight, dimensions")
+        .eq("in_stock", true)
+        .order("name");
+
+      if (error) throw error;
+
+      setProducts(data || []);
+
+      // Diagnostic: count ALL products in the table (ignoring in_stock filter)
+      // so we can tell the user if rows exist but are marked out-of-stock
+      if ((data || []).length === 0) {
+        const { count } = await supabase
+          .from("products")
+          .select("id", { count: "exact", head: true });
+        setTotalInDB(count ?? 0);
+      } else {
+        setTotalInDB(null);
+      }
+    } catch (err: any) {
+      console.error("fetchProducts error:", err);
+      setProductError(err?.message || "Failed to load products");
+    } finally {
+      setLoadingProducts(false);
+    }
   };
+  // ─────────────────────────────────────────────────────────────────────────
 
   const fetchReceiptSettings = async () => {
     const { data } = await supabase.from("receipt_settings")
@@ -461,9 +495,142 @@ const POSPage = () => {
     return "";
   };
 
+  // ── Product grid content (loading / error / empty / grid) ─────────────────
+  const renderProductGrid = () => {
+    if (loadingProducts) {
+      return (
+        <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-3">
+          <Loader2 size={32} className="animate-spin opacity-40" />
+          <p className="text-sm">Loading products…</p>
+        </div>
+      );
+    }
+
+    if (productError) {
+      return (
+        <div className="flex flex-col items-center justify-center py-16 gap-3">
+          <PackageX size={32} className="text-destructive/50" />
+          <p className="text-sm font-medium text-destructive">Failed to load products</p>
+          <p className="text-xs text-muted-foreground max-w-xs text-center">{productError}</p>
+          <Button size="sm" variant="outline" onClick={fetchProducts}>Retry</Button>
+        </div>
+      );
+    }
+
+    if (filteredProducts.length === 0) {
+      // No results after search/filter
+      if (search || categoryFilter !== "all") {
+        return (
+          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
+            <Search size={32} className="opacity-30" />
+            <p className="text-sm">No products match your search</p>
+            <button
+              className="text-xs text-primary underline"
+              onClick={() => { setSearch(""); setCategoryFilter("all"); }}>
+              Clear filters
+            </button>
+          </div>
+        );
+      }
+
+      // No products at all — show diagnostic hint
+      return (
+        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
+          <PackageX size={36} className="opacity-25" />
+          <p className="text-sm font-medium text-foreground">No products available</p>
+          {totalInDB !== null && totalInDB > 0 ? (
+            <p className="text-xs text-center max-w-xs leading-relaxed">
+              <span className="text-amber-600 font-semibold">{totalInDB} product{totalInDB !== 1 ? "s" : ""} found in database</span>
+              {" "}but none are marked as <code className="bg-muted px-1 rounded text-[10px]">in_stock = true</code>.
+              Set products to in-stock in your inventory to show them here.
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">Add products in the Inventory section to get started.</p>
+          )}
+          <Button size="sm" variant="outline" onClick={fetchProducts} className="mt-1">
+            Refresh
+          </Button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
+        {filteredProducts.map((p) => {
+          const isBottoms = isPantsCategory(p.category);
+          return (
+            <button
+              key={p.id}
+              onClick={() => openVariantPicker(p)}
+              className="group bg-card border border-border/40 rounded-xl overflow-hidden text-left hover:border-primary/40 hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5"
+            >
+              <div className="relative w-full aspect-[3/4] bg-muted overflow-hidden">
+                {p.image_url ? (
+                  <img src={p.image_url} alt={p.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                    <ShoppingCart size={24} />
+                  </div>
+                )}
+                {p.stock_quantity <= 3 && p.stock_quantity > 0 && (
+                  <span className="absolute top-1.5 left-1.5 text-[9px] px-1.5 py-0.5 rounded bg-orange-500 text-white font-bold">
+                    Low Stock
+                  </span>
+                )}
+                {p.stock_quantity === 0 && (
+                  <div className="absolute inset-0 bg-background/70 flex items-center justify-center">
+                    <span className="text-xs font-bold text-muted-foreground">Out of Stock</span>
+                  </div>
+                )}
+                <div className="absolute bottom-1.5 right-1.5 flex gap-1 flex-wrap justify-end">
+                  {isBottoms && (
+                    <span style={{
+                      fontSize: "9px", padding: "2px 5px", borderRadius: "3px",
+                      background: "rgba(26,86,219,.85)", color: "#fff", fontWeight: 700,
+                    }}>W×L</span>
+                  )}
+                  {!isBottoms && (p.available_sizes?.length ?? 0) > 0 && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-black/60 text-white font-medium">SIZE</span>
+                  )}
+                  {(p.available_colors?.length ?? 0) > 0 && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-black/60 text-white font-medium">COLOR</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="p-2.5">
+                {p.brand && <p className="text-[10px] text-muted-foreground uppercase tracking-wider truncate">{p.brand}</p>}
+                <p className="text-xs font-medium text-foreground line-clamp-2 leading-snug mt-0.5">{p.name}</p>
+                <p className="font-heading text-primary text-sm mt-1">₱{Number(p.price).toLocaleString()}</p>
+                <div className="flex items-center justify-between mt-0.5">
+                  <p className="text-[10px] text-muted-foreground">Stock: {p.stock_quantity}</p>
+                  {p.weight && (
+                    <p className="text-[9px] text-muted-foreground flex items-center gap-0.5">
+                      <Scale size={8} /> {p.weight}g
+                    </p>
+                  )}
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
+  // ─────────────────────────────────────────────────────────────────────────
+
   return (
     <div className="space-y-4">
-      <h1 className="font-heading text-2xl uppercase tracking-wider text-foreground">Point of Sale</h1>
+      {/* Header row with product count badge */}
+      <div className="flex items-center justify-between">
+        <h1 className="font-heading text-2xl uppercase tracking-wider text-foreground">Point of Sale</h1>
+        {!loadingProducts && !productError && (
+          <span className="text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
+            {products.length} product{products.length !== 1 ? "s" : ""} available
+          </span>
+        )}
+      </div>
 
       <div className="grid lg:grid-cols-3 gap-4">
 
@@ -493,74 +660,8 @@ const POSPage = () => {
             </Select>
           </div>
 
-          {filteredProducts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
-              <Search size={32} className="opacity-30" />
-              <p className="text-sm">No products found</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
-              {filteredProducts.map((p) => {
-                const isBottoms = isPantsCategory(p.category);
-                return (
-                  <button
-                    key={p.id}
-                    onClick={() => openVariantPicker(p)}
-                    className="group bg-card border border-border/40 rounded-xl overflow-hidden text-left hover:border-primary/40 hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5"
-                  >
-                    <div className="relative w-full aspect-[3/4] bg-muted overflow-hidden">
-                      {p.image_url ? (
-                        <img src={p.image_url} alt={p.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                          <ShoppingCart size={24} />
-                        </div>
-                      )}
-                      {p.stock_quantity <= 3 && p.stock_quantity > 0 && (
-                        <span className="absolute top-1.5 left-1.5 text-[9px] px-1.5 py-0.5 rounded bg-orange-500 text-white font-bold">
-                          Low Stock
-                        </span>
-                      )}
-                      {p.stock_quantity === 0 && (
-                        <div className="absolute inset-0 bg-background/70 flex items-center justify-center">
-                          <span className="text-xs font-bold text-muted-foreground">Out of Stock</span>
-                        </div>
-                      )}
-                      <div className="absolute bottom-1.5 right-1.5 flex gap-1 flex-wrap justify-end">
-                        {isBottoms && (
-                          <span style={{
-                            fontSize: "9px", padding: "2px 5px", borderRadius: "3px",
-                            background: "rgba(26,86,219,.85)", color: "#fff", fontWeight: 700,
-                          }}>W×L</span>
-                        )}
-                        {!isBottoms && (p.available_sizes?.length ?? 0) > 0 && (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-black/60 text-white font-medium">SIZE</span>
-                        )}
-                        {(p.available_colors?.length ?? 0) > 0 && (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-black/60 text-white font-medium">COLOR</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="p-2.5">
-                      {p.brand && <p className="text-[10px] text-muted-foreground uppercase tracking-wider truncate">{p.brand}</p>}
-                      <p className="text-xs font-medium text-foreground line-clamp-2 leading-snug mt-0.5">{p.name}</p>
-                      <p className="font-heading text-primary text-sm mt-1">₱{Number(p.price).toLocaleString()}</p>
-                      <div className="flex items-center justify-between mt-0.5">
-                        <p className="text-[10px] text-muted-foreground">Stock: {p.stock_quantity}</p>
-                        {p.weight && (
-                          <p className="text-[9px] text-muted-foreground flex items-center gap-0.5">
-                            <Scale size={8} /> {p.weight}g
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          {/* ── Replaced raw grid with renderProductGrid() ── */}
+          {renderProductGrid()}
         </div>
 
         {/* Cart Panel */}
