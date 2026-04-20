@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import {
   Search, Filter, Eye, Trash2, ShoppingCart,
   TrendingUp, CheckCircle, ChevronRight, Truck,
-  MapPin, Clock, RotateCcw, Package, AlertCircle,
+  MapPin, Clock, RotateCcw, Package, AlertCircle, EyeOff,
 } from "lucide-react";
 
 const statusFlow = [
@@ -58,11 +58,124 @@ const TIMELINE_MESSAGES: Record<string, string> = {
   packed:           "Your order is being packed",
   shipped:          "Order has been shipped",
   out_for_delivery: "Out for delivery",
-  delivered:        "Package has been delivered",  // ← must be here
-  arrived:          "Package has arrived",          // ← must be here
-  completed:        "Order completed. Thank you!",  // ← must be here
+  delivered:        "Package has been delivered",
+  arrived:          "Package has arrived",
+  completed:        "Order completed. Thank you!",
   cancelled:        "Order was cancelled",
 };
+
+// ─── NEW: Delete confirmation modal ──────────────────────────────────────────
+function DeleteConfirmModal({
+  order,
+  onClose,
+  onHide,
+  onDeletePermanently,
+}: {
+  order: any | null;
+  onClose: () => void;
+  onHide: (order: any) => void;
+  onDeletePermanently: (order: any) => void;
+}) {
+  const [step, setStep] = useState<"choose" | "confirm">("choose");
+
+  if (!order) return null;
+
+  return (
+    <Dialog open={!!order} onOpenChange={() => { setStep("choose"); onClose(); }}>
+      <DialogContent className="bg-[#111827] text-white border-white/10 max-w-sm">
+        {step === "choose" ? (
+          <>
+            <DialogTitle className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-red-500/15 border border-red-500/25 flex items-center justify-center shrink-0">
+                <Trash2 size={15} className="text-red-400" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">Remove order</p>
+                <p className="text-[11px] text-slate-400 font-normal mt-0.5">Choose how to remove this order</p>
+              </div>
+            </DialogTitle>
+
+            {/* Order preview */}
+            <div className="p-3 rounded-xl bg-white/5 border border-white/8 text-sm">
+              <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">
+                Order #{order.id?.slice(0, 8).toUpperCase()}
+              </p>
+              <p className="font-medium">{order.customer_name}</p>
+              <p className="text-xs text-emerald-400">₱{Number(order.total).toLocaleString()} · {order.status}</p>
+            </div>
+
+            <div className="flex flex-col gap-2.5">
+              {/* Hide */}
+              <button
+                onClick={() => { onHide(order); onClose(); }}
+                className="flex items-center gap-3 p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500/15 transition-all text-left w-full">
+                <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center shrink-0">
+                  <EyeOff size={14} className="text-indigo-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-indigo-300">Hide order</p>
+                  <p className="text-[11px] text-slate-500">Moves to hidden list · can be restored anytime</p>
+                </div>
+              </button>
+
+              {/* Delete permanently */}
+              <button
+                onClick={() => setStep("confirm")}
+                className="flex items-center gap-3 p-3.5 rounded-xl bg-red-500/8 border border-red-500/20 hover:bg-red-500/12 transition-all text-left w-full">
+                <div className="w-8 h-8 rounded-lg bg-red-500/15 flex items-center justify-center shrink-0">
+                  <Trash2 size={14} className="text-red-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-red-400">Delete permanently</p>
+                  <p className="text-[11px] text-slate-500">Cannot be undone · removes all order data</p>
+                </div>
+              </button>
+            </div>
+
+            <Button variant="ghost" className="w-full border border-white/8 text-slate-400 text-sm"
+              onClick={() => { setStep("choose"); onClose(); }}>
+              Cancel
+            </Button>
+          </>
+        ) : (
+          <>
+            <DialogTitle className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-red-500/20 border border-red-500/30 flex items-center justify-center shrink-0">
+                <AlertCircle size={15} className="text-red-400" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-red-300">Are you absolutely sure?</p>
+                <p className="text-[11px] text-slate-400 font-normal mt-0.5">This action cannot be undone</p>
+              </div>
+            </DialogTitle>
+
+            <div className="p-3.5 rounded-xl bg-red-500/8 border border-red-500/20 text-sm space-y-1">
+              <p className="text-red-300 font-medium text-xs">This will permanently delete:</p>
+              <ul className="text-slate-400 text-xs space-y-0.5 list-disc list-inside">
+                <li>Order #{order.id?.slice(0, 8).toUpperCase()} and all its data</li>
+                <li>Order items, timeline, and tracking info</li>
+                <li>All associated customer records for this order</li>
+              </ul>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                className="flex-1 bg-red-600 hover:bg-red-500 text-white gap-1.5 text-sm"
+                onClick={() => { onDeletePermanently(order); setStep("choose"); onClose(); }}>
+                <Trash2 size={13} /> Yes, delete permanently
+              </Button>
+              <Button variant="ghost" className="flex-1 border border-white/10 text-sm"
+                onClick={() => setStep("choose")}>
+                Go back
+              </Button>
+            </div>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function OrdersPage() {
   const [orders, setOrders]                 = useState<any[]>([]);
@@ -74,6 +187,7 @@ export default function OrdersPage() {
   const [trackingNumber, setTrackingNumber] = useState("");
   const [courier, setCourier]               = useState("jnt");
   const [showHidden, setShowHidden]         = useState(false);
+  const [deleteModal, setDeleteModal]       = useState<any>(null); // NEW
 
   useEffect(() => {
     fetchOrders();
@@ -83,70 +197,71 @@ export default function OrdersPage() {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, []);
-const fetchOrders = async () => {
-  const { data, error } = await supabase
-    .from("orders")
-   .select("*, order_timeline(*), order_items(*)")
-    .order("created_at", { ascending: false });
 
-  if (error) console.error("Fetch orders error:", error);
-  setOrders(data || []);
-};
-
-  const deleteOrder = async (id: string, currentDeleted: boolean) => {
-    const action = currentDeleted ? "Restore" : "Hide";
-    if (!confirm(`${action} this order?`)) return;
-    const { error } = await supabase
-  .from("orders")
-  .update({ 
-    status: newStatus,
-    // status_history: history,  // comment this out temporarily
-  })
-  .eq("id", id);
-    if (error) { toast.error("Failed to update order"); return; }
-    toast.success(`Order ${currentDeleted ? "restored" : "hidden"}`);
-    setOrders(prev => prev.map(o => o.id === id ? { ...o, is_deleted: !currentDeleted } : o));
+  const fetchOrders = async () => {
+    const { data, error } = await supabase
+      .from("orders")
+      .select("*, order_timeline(*), order_items(*)")
+      .order("created_at", { ascending: false });
+    if (error) console.error("Fetch orders error:", error);
+    setOrders(data || []);
   };
 
-const updateStatus = async (id: string, newStatus: string) => {
-  // Only intercept "shipped" to collect tracking info
-  if (newStatus === "shipped") {
+  // UPDATED: cleanly toggles is_deleted
+  const deleteOrder = async (id: string, currentDeleted: boolean) => {
+    const nowHidden = !currentDeleted;
+    const { error } = await supabase
+      .from("orders")
+      .update({ is_deleted: nowHidden })
+      .eq("id", id);
+    if (error) { toast.error("Failed to update order"); return; }
+    toast.success(nowHidden ? "Order hidden" : "Order restored");
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, is_deleted: nowHidden } : o));
+  };
+
+  // NEW: hard delete from database
+  const deletePermanently = async (order: any) => {
+    const { error } = await supabase.from("orders").delete().eq("id", order.id);
+    if (error) { toast.error("Failed to delete order"); return; }
+    toast.success("Order permanently deleted");
+    setOrders(prev => prev.filter(o => o.id !== order.id));
+    if (viewOrder?.id === order.id) setViewOrder(null);
+  };
+
+  const updateStatus = async (id: string, newStatus: string) => {
+    if (newStatus === "shipped") {
+      const order = orders.find(o => o.id === id);
+      setShippingModal(order);
+      return;
+    }
+
+    setUpdatingId(id);
+    const now = new Date().toISOString();
     const order = orders.find(o => o.id === id);
-    setShippingModal(order);
-    return;
-  }
 
-  // ALL other statuses including delivered, arrived, completed go here
-  setUpdatingId(id);
-  const now = new Date().toISOString();
-  const order = orders.find(o => o.id === id);
+    const history = [
+      ...(order?.status_history ?? []),
+      { status: newStatus, timestamp: now, message: TIMELINE_MESSAGES[newStatus] ?? newStatus },
+    ];
 
-  const history = [
-    ...(order?.status_history ?? []),
-    { status: newStatus, timestamp: now, message: TIMELINE_MESSAGES[newStatus] ?? newStatus },
-  ];
+    const { error } = await supabase
+      .from("orders")
+      .update({ status: newStatus, status_history: history })
+      .eq("id", id);
 
-  const { error } = await supabase
-    .from("orders")
-    .update({ 
-      status: newStatus, 
-      status_history: history 
-    })
-    .eq("id", id);
-
-  if (error) {
-    console.error("Update error:", error);
-    toast.error(error.message); // shows exact DB error
-  } else {
-    toast.success(`Order marked as ${newStatus.replace(/_/g, " ")}`);
-    setOrders(prev =>
-      prev.map(o => o.id === id ? { ...o, status: newStatus, status_history: history } : o)
-    );
-    if (viewOrder?.id === id)
-      setViewOrder((p: any) => ({ ...p, status: newStatus, status_history: history }));
-  }
-  setUpdatingId(null);
-};
+    if (error) {
+      console.error("Update error:", error);
+      toast.error(error.message);
+    } else {
+      toast.success(`Order marked as ${newStatus.replace(/_/g, " ")}`);
+      setOrders(prev =>
+        prev.map(o => o.id === id ? { ...o, status: newStatus, status_history: history } : o)
+      );
+      if (viewOrder?.id === id)
+        setViewOrder((p: any) => ({ ...p, status: newStatus, status_history: history }));
+    }
+    setUpdatingId(null);
+  };
 
   const confirmShipping = async () => {
     if (!trackingNumber.trim()) { toast.error("Please enter a tracking number"); return; }
@@ -176,14 +291,13 @@ const updateStatus = async (id: string, newStatus: string) => {
     setShippingModal(null); setTrackingNumber(""); setCourier("jnt");
   };
 
- const getNextStatus = (current: string) => {
-  if (current === "cancelled" || current === "completed") return null;
-  const idx = statusFlow.indexOf(current);
-  if (idx === -1 || idx === statusFlow.length - 1) return null;
-  const next = statusFlow[idx + 1];
-  // Skip cancelled as a next step
-  return next === "cancelled" ? null : next;
-};
+  const getNextStatus = (current: string) => {
+    if (current === "cancelled" || current === "completed") return null;
+    const idx = statusFlow.indexOf(current);
+    if (idx === -1 || idx === statusFlow.length - 1) return null;
+    const next = statusFlow[idx + 1];
+    return next === "cancelled" ? null : next;
+  };
 
   const filtered = orders.filter(o => {
     const matchSearch = (o.customer_name || "").toLowerCase().includes(search.toLowerCase());
@@ -357,14 +471,24 @@ const updateStatus = async (id: string, newStatus: string) => {
                             <Eye size={13} />
                           </Button>
                         )}
-                        {/* Hide / Restore */}
+                        {/* Restore (shown only in hidden view) */}
+                        {o.is_deleted && (
+                          <Button
+                            size="icon" variant="ghost"
+                            title="Restore order"
+                            className="h-7 w-7 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                            onClick={() => deleteOrder(o.id, true)}>
+                            <RotateCcw size={13} />
+                          </Button>
+                        )}
+                        {/* UPDATED: opens modal with Hide / Delete permanently options */}
                         <Button
                           size="icon"
                           variant="ghost"
-                          title={o.is_deleted ? "Restore order" : "Hide order"}
-                          className={`h-7 w-7 transition-colors ${o.is_deleted ? "text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10" : "text-slate-500 hover:text-red-400 hover:bg-red-500/10"}`}
-                          onClick={() => deleteOrder(o.id, !!o.is_deleted)}>
-                          {o.is_deleted ? <RotateCcw size={13} /> : <Trash2 size={13} />}
+                          title="Remove order"
+                          className={`h-7 w-7 transition-colors ${o.is_deleted ? "text-slate-500 hover:text-red-400 hover:bg-red-500/10" : "text-slate-500 hover:text-red-400 hover:bg-red-500/10"}`}
+                          onClick={() => setDeleteModal(o)}>
+                          <Trash2 size={13} />
                         </Button>
                       </div>
                     </TableCell>
@@ -375,6 +499,14 @@ const updateStatus = async (id: string, newStatus: string) => {
           </Table>
         </div>
       </div>
+
+      {/* NEW: Delete confirmation modal */}
+      <DeleteConfirmModal
+        order={deleteModal}
+        onClose={() => setDeleteModal(null)}
+        onHide={(o) => deleteOrder(o.id, !!o.is_deleted)}
+        onDeletePermanently={deletePermanently}
+      />
 
       {/* View Order Modal */}
       <Dialog open={!!viewOrder} onOpenChange={() => setViewOrder(null)}>
