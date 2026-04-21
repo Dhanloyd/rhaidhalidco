@@ -10,7 +10,7 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   ShoppingCart, MapPin, CreditCard, CheckCircle,
   ChevronRight, ChevronLeft, ExternalLink, Loader2,
-  Upload, Copy, Clock, ImageIcon,
+  Upload, Copy, Clock, ImageIcon, Printer,
 } from "lucide-react";
 import logo from "@/assets/logo.jpg";
 
@@ -925,58 +925,78 @@ const CheckoutPage = () => {
         )}
 
         {/* Step 3: Confirmation */}
-        {step === 3 && (
-          <div>
-            {showGcashInstructions ? (
-              <div>
-                <GCashInstructionPage
-                  referenceNumber={gcashReferenceNumber}
-                  amount={displayGrandTotal}
-                  gcashNumber={paymentConfig?.gcash_number || "09XX-XXX-XXXX"}
-                  qrImageUrl={paymentConfig?.qr_image_url || null}
-                  onProofUploaded={(url) => setGcashProofUrl(url)}
-                />
-                <div className="flex justify-center gap-4 mt-6 flex-wrap">
-                  <Link to="/my-orders">
-                    <Button className="bg-primary text-primary-foreground font-heading uppercase tracking-wider">View My Orders</Button>
-                  </Link>
-                  <Link to="/shop">
-                    <Button variant="outline" className="font-heading uppercase tracking-wider">Continue Shopping</Button>
-                  </Link>
-                </div>
-              </div>
-            ) : (
-              <div className="max-w-2xl mx-auto">
-                <div style={{ borderRadius: "16px", overflow: "hidden", border: "1px solid rgba(10,13,20,.1)", boxShadow: "0 20px 60px -12px rgba(10,13,20,.15)" }}>
-                  <ZaloraReceipt
-                    orderId={orderId}
-                    items={confirmedItems.length > 0 ? confirmedItems : items}
-                    shipping={shipping}
-                    subtotal={displaySubtotal}
-                    discount={displayDiscount}
-                    shippingFee={displayShippingFee}
-                    grandTotal={displayGrandTotal}
-                    paymentMethod={paymentMethod}
-                    userEmail={user?.email ?? ""}
-                    appliedVoucher={appliedVoucher}
-                  />
-                </div>
-                <div className="flex justify-center gap-4 mt-6 flex-wrap">
-                  <Link to="/my-orders">
-                    <Button className="bg-primary text-primary-foreground font-heading uppercase tracking-wider">View My Orders</Button>
-                  </Link>
-                  <Link to="/shop">
-                    <Button variant="outline" className="font-heading uppercase tracking-wider">Continue Shopping</Button>
-                  </Link>
-                  <Button variant="outline" onClick={() => window.print()} className="font-heading uppercase tracking-wider">
-                    🖨️ Print Receipt
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
+      
+{step === 3 && (
+  <div>
+    {showGcashInstructions ? (
+      <div>
+        <GCashInstructionPage
+          referenceNumber={gcashReferenceNumber}
+          amount={displayGrandTotal}
+          gcashNumber={paymentConfig?.gcash_number || "09XX-XXX-XXXX"}
+          qrImageUrl={paymentConfig?.qr_image_url || null}
+          onProofUploaded={(url) => setGcashProofUrl(url)}
+        />
+        <div className="flex justify-center gap-4 mt-6 flex-wrap">
+          <Link to="/my-orders">
+            <Button className="bg-primary text-primary-foreground font-heading uppercase tracking-wider">View My Orders</Button>
+          </Link>
+          <Link to="/shop">
+            <Button variant="outline" className="font-heading uppercase tracking-wider">Continue Shopping</Button>
+          </Link>
+        </div>
+      </div>
+    ) : (
+      <div className="max-w-2xl mx-auto">
+        <div
+          id="checkout-receipt-print"
+          style={{ borderRadius: "16px", overflow: "hidden", border: "1px solid rgba(10,13,20,.1)", boxShadow: "0 20px 60px -12px rgba(10,13,20,.15)" }}
+        >
+          <ZaloraReceipt
+            orderId={orderId}
+            items={confirmedItems.length > 0 ? confirmedItems : items}
+            shipping={shipping}
+            subtotal={displaySubtotal}
+            discount={displayDiscount}
+            shippingFee={displayShippingFee}
+            grandTotal={displayGrandTotal}
+            paymentMethod={paymentMethod}
+            userEmail={user?.email ?? ""}
+            appliedVoucher={appliedVoucher}
+          />
+        </div>
+        <div className="flex justify-center gap-4 mt-6 flex-wrap">
+          <Link to="/my-orders">
+            <Button className="bg-primary text-primary-foreground font-heading uppercase tracking-wider">
+              View My Orders
+            </Button>
+          </Link>
+          <Link to="/shop">
+            <Button variant="outline" className="font-heading uppercase tracking-wider">
+              Continue Shopping
+            </Button>
+          </Link>
+          <Button
+  variant="outline"
+  className="font-heading uppercase tracking-wider gap-2"
+  onClick={() => {
+    const content = document.getElementById("checkout-receipt-print");
+    if (!content) { window.print(); return; }
+    const win = window.open("", "_blank", "width=620,height=900");
+    if (!win) { window.print(); return; }
+    win.document.write(`...`);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); win.close(); }, 600);
+  }}
+>
+  <Printer size={15} /> Print Receipt  {/* ← replaces the 🖨️ emoji */}
+</Button>
+        </div>
+      </div>
+    )}
+  </div>
+)}
         {/* Navigation */}
         {step < 3 && (
           <div className="flex justify-between mt-8">

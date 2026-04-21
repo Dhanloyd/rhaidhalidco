@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,33 +9,36 @@ import { toast } from "sonner";
 import {
   Search, Filter, Eye, Trash2, ShoppingCart,
   TrendingUp, CheckCircle, ChevronRight, Truck,
-  MapPin, Clock, RotateCcw, Package, AlertCircle, EyeOff,
+  MapPin, Clock, RotateCcw, Package, AlertCircle, EyeOff, RefreshCw, Printer,
 } from "lucide-react";
+import logo from "@/assets/logo.jpg";
 
+// ─── Status flow ──────────────────────────────────────────────────────────────
 const statusFlow = [
-  "pending","confirmed","packed","shipped",
-  "out_for_delivery","delivered","arrived","completed","cancelled",
+  "pending", "confirmed", "packed", "shipped",
+  "out_for_delivery", "delivered", "arrived", "completed", "cancelled",
 ];
 
 const COURIERS = [
-  { id:"jnt",      name:"J&T Express", url:"https://www.jnt.com.ph/tracking?awb=" },
-  { id:"lbc",      name:"LBC",         url:"https://www.lbcexpress.com/track/?tracking_no=" },
-  { id:"ninjavan", name:"Ninja Van",   url:"https://www.ninjavan.co/en-ph/tracking?id=" },
-  { id:"grab",     name:"GrabExpress", url:"" },
-  { id:"lalamove", name:"Lalamove",    url:"" },
-  { id:"other",    name:"Other",       url:"" },
+  { id: "jnt",      name: "J&T Express", url: "https://www.jnt.com.ph/tracking?awb="          },
+  { id: "lbc",      name: "LBC",         url: "https://www.lbcexpress.com/track/?tracking_no=" },
+  { id: "ninjavan", name: "Ninja Van",   url: "https://www.ninjavan.co/en-ph/tracking?id="     },
+  { id: "grab",     name: "GrabExpress", url: ""                                                },
+  { id: "lalamove", name: "Lalamove",    url: ""                                                },
+  { id: "other",    name: "Other",       url: ""                                                },
 ];
 
 const STATUS_COLORS: Record<string, string> = {
-  pending:          "bg-amber-500/15 text-amber-400 border border-amber-500/20",
-  confirmed:        "bg-blue-500/15 text-blue-400 border border-blue-500/20",
-  packed:           "bg-violet-500/15 text-violet-400 border border-violet-500/20",
-  shipped:          "bg-indigo-500/15 text-indigo-400 border border-indigo-500/20",
-  out_for_delivery: "bg-sky-500/15 text-sky-400 border border-sky-500/20",
-  delivered:        "bg-cyan-500/15 text-cyan-400 border border-cyan-500/20",
-  arrived:          "bg-teal-500/15 text-teal-400 border border-teal-500/20",
-  completed:        "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20",
-  cancelled:        "bg-red-500/15 text-red-400 border border-red-500/20",
+  pending:           "bg-amber-500/15 text-amber-400 border border-amber-500/20",
+  confirmed:         "bg-blue-500/15 text-blue-400 border border-blue-500/20",
+  packed:            "bg-violet-500/15 text-violet-400 border border-violet-500/20",
+  shipped:           "bg-indigo-500/15 text-indigo-400 border border-indigo-500/20",
+  out_for_delivery:  "bg-sky-500/15 text-sky-400 border border-sky-500/20",
+  delivered:         "bg-cyan-500/15 text-cyan-400 border border-cyan-500/20",
+  arrived:           "bg-teal-500/15 text-teal-400 border border-teal-500/20",
+  completed:         "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20",
+  cancelled:         "bg-red-500/15 text-red-400 border border-red-500/20",
+  payment_complete:  "bg-teal-500/15 text-teal-300 border border-teal-400/30",
 };
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
@@ -48,6 +51,14 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
   arrived:          <MapPin size={11} />,
   completed:        <CheckCircle size={11} />,
   cancelled:        <AlertCircle size={11} />,
+  payment_complete: <CheckCircle size={11} />,
+};
+
+const PAYMENT_STATUS_COLORS: Record<string, string> = {
+  paid:             "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20",
+  pending:          "bg-amber-500/15 text-amber-400 border border-amber-500/20",
+  failed:           "bg-red-500/15 text-red-400 border border-red-500/20",
+  payment_complete: "bg-teal-500/15 text-teal-300 border border-teal-400/30",
 };
 
 const card = "bg-white/5 border border-white/10 backdrop-blur-xl rounded-2xl";
@@ -62,15 +73,209 @@ const TIMELINE_MESSAGES: Record<string, string> = {
   arrived:          "Package has arrived",
   completed:        "Order completed. Thank you!",
   cancelled:        "Order was cancelled",
+  payment_complete: "Payment has been verified and completed",
+};
+
+// ─── Print Receipt Component ──────────────────────────────────────────────────
+const OrderReceipt = ({ order }: { order: any }) => {
+  const fmt = (n: number) =>
+    n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const items: any[] = order.order_items || order.items || [];
+  const totalQty = items.reduce((s: number, i: any) => s + (i.quantity ?? 1), 0);
+  const subtotal = Number(order.subtotal || order.total || 0);
+  const discount = Number(order.discount || 0);
+  const shippingFee = Number(order.shipping_fee || 0);
+  const grandTotal = Number(order.total || 0);
+  const orderDate = new Date(order.created_at).toLocaleDateString("en-PH", {
+    year: "numeric", month: "long", day: "numeric",
+  });
+
+  const pmLabels: Record<string, string> = {
+    cod:          "Cash on Delivery",
+    gcash:        "GCash / GrabPay",
+    card:         "Credit / Debit Card",
+    gcash_manual: "GCash (Manual Transfer)",
+  };
+
+  return (
+    <div id="order-receipt-print" style={{ fontFamily: "'Outfit', system-ui, sans-serif", background: "#fff", maxWidth: "480px", margin: "0 auto" }}>
+      {/* Header */}
+      <div style={{ background: "linear-gradient(135deg, #060b18 0%, #0f1f3d 100%)", padding: "24px 20px 20px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
+        <img
+          src={logo}
+          alt="RaidKhalid & Co."
+          style={{ width: "64px", height: "64px", objectFit: "contain", borderRadius: "12px", border: "2px solid rgba(255,255,255,0.15)" }}
+          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+        />
+        <div>
+          <p style={{ fontFamily: "sans-serif", fontSize: "1.3rem", fontWeight: 900, letterSpacing: ".06em", color: "#fff", marginBottom: "4px", textTransform: "uppercase" }}>
+            RaidKhalid &amp; Co.
+          </p>
+          <p style={{ fontSize: "11px", color: "rgba(255,255,255,.45)", marginBottom: "2px" }}>Admin Order Receipt</p>
+          <p style={{ fontSize: "10px", color: "rgba(255,255,255,.3)" }}>{orderDate}</p>
+        </div>
+      </div>
+
+      {/* Meta grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", borderBottom: "1px solid rgba(10,13,20,.08)" }}>
+        {[
+          { label: "Order #",   value: `#${order.id?.slice(0, 8).toUpperCase()}` },
+          { label: "Date",      value: orderDate },
+          { label: "Customer",  value: order.customer_name },
+          { label: "Payment",   value: pmLabels[order.payment_method] ?? (order.payment_method || "—") },
+        ].map((m, i) => (
+          <div key={i} style={{ padding: "10px 16px", borderBottom: i < 2 ? "1px solid rgba(10,13,20,.06)" : "none", borderRight: i % 2 === 0 ? "1px solid rgba(10,13,20,.06)" : "none" }}>
+            <p style={{ fontSize: "9px", fontWeight: 800, letterSpacing: ".16em", textTransform: "uppercase", color: "rgba(10,13,20,.35)", marginBottom: "2px" }}>{m.label}</p>
+            <p style={{ fontSize: "12px", fontWeight: 700, color: "#0a0d14" }}>{m.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Shipping info */}
+      <div style={{ padding: "12px 16px", borderBottom: "1px solid rgba(10,13,20,.06)", background: "rgba(10,13,20,.02)" }}>
+        <p style={{ fontSize: "9px", fontWeight: 800, letterSpacing: ".16em", textTransform: "uppercase", color: "rgba(10,13,20,.35)", marginBottom: "6px" }}>Ship To</p>
+        <p style={{ fontSize: "12px", fontWeight: 700, color: "#0a0d14", marginBottom: "2px" }}>{order.shipping_name || order.customer_name}</p>
+        {order.shipping_phone && <p style={{ fontSize: "11px", color: "rgba(10,13,20,.5)", marginBottom: "1px" }}>{order.shipping_phone}</p>}
+        {order.shipping_address && (
+          <p style={{ fontSize: "11px", color: "rgba(10,13,20,.5)", lineHeight: 1.5 }}>
+            {typeof order.shipping_address === "object"
+              ? `${order.shipping_address.address}, ${order.shipping_address.city}`
+              : order.shipping_address}
+          </p>
+        )}
+      </div>
+
+      {/* Items */}
+      <div style={{ padding: "14px 16px 0" }}>
+        <p style={{ fontSize: "9px", fontWeight: 800, letterSpacing: ".16em", textTransform: "uppercase", color: "rgba(10,13,20,.35)", marginBottom: "8px" }}>Items Ordered</p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 60px 40px 64px", padding: "5px 8px", background: "rgba(10,13,20,.04)", borderRadius: "5px", marginBottom: "4px" }}>
+          {["Item", "Variant", "Qty", "Amount"].map(h => (
+            <span key={h} style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".1em", color: "rgba(10,13,20,.4)", textAlign: h !== "Item" ? "center" : "left" }}>{h}</span>
+          ))}
+        </div>
+        {items.length === 0 ? (
+          <p style={{ fontSize: "12px", color: "rgba(10,13,20,.4)", padding: "8px 0" }}>No item details available</p>
+        ) : items.map((item: any, i: number) => {
+          const name = item.product_name ?? item.name ?? "Item";
+          const qty = item.quantity ?? 1;
+          const price = Number(item.unit_price ?? item.price ?? 0);
+          const size = item.selected_size ?? null;
+          const color = item.selected_color ?? null;
+          return (
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 60px 40px 64px", padding: "7px 8px", alignItems: "center", borderBottom: i < items.length - 1 ? "1px solid rgba(10,13,20,.05)" : "none" }}>
+              <div>
+                <p style={{ fontSize: "11px", fontWeight: 600, color: "#0a0d14", lineHeight: 1.3 }}>{name}</p>
+                <p style={{ fontSize: "10px", color: "rgba(10,13,20,.4)", marginTop: "1px" }}>@ ₱{fmt(price)}</p>
+              </div>
+              <div style={{ textAlign: "center" }}>
+                {size && <span style={{ display: "inline-block", fontSize: "9px", fontWeight: 700, padding: "2px 5px", borderRadius: "3px", background: "rgba(26,86,219,.08)", color: "#1a56db", textTransform: "uppercase" }}>{size}</span>}
+                {color && <p style={{ fontSize: "9px", color: "rgba(10,13,20,.45)", marginTop: "2px" }}>{color}</p>}
+                {!size && !color && <span style={{ fontSize: "10px", color: "rgba(10,13,20,.3)" }}>—</span>}
+              </div>
+              <div style={{ textAlign: "center", fontSize: "12px", fontWeight: 700, color: "#0a0d14" }}>×{qty}</div>
+              <div style={{ textAlign: "right", fontSize: "12px", fontWeight: 800, color: "#0a0d14" }}>₱{fmt(price * qty)}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Totals */}
+      <div style={{ margin: "12px 16px 0", background: "rgba(10,13,20,.02)", borderRadius: "8px", border: "1px solid rgba(10,13,20,.07)", overflow: "hidden" }}>
+        {[
+          { label: `Subtotal (${totalQty} pc${totalQty !== 1 ? "s" : ""})`, value: `₱${fmt(subtotal)}`, green: false },
+          ...(discount > 0 ? [{ label: "Discount", value: `-₱${fmt(discount)}`, green: true }] : []),
+          { label: "Shipping Fee", value: shippingFee === 0 ? "FREE" : `₱${fmt(shippingFee)}`, green: shippingFee === 0 },
+        ].map((row, i) => (
+          <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "7px 12px", borderBottom: "1px solid rgba(10,13,20,.05)" }}>
+            <span style={{ fontSize: "11px", color: "rgba(10,13,20,.5)" }}>{row.label}</span>
+            <span style={{ fontSize: "11px", fontWeight: 700, color: row.green ? "#16a34a" : "#0a0d14" }}>{row.value}</span>
+          </div>
+        ))}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 12px", background: "#0a0d14" }}>
+          <span style={{ fontWeight: 900, fontSize: "0.95rem", letterSpacing: ".04em", color: "rgba(255,255,255,.65)", textTransform: "uppercase" }}>TOTAL</span>
+          <span style={{ fontWeight: 900, fontSize: "1.2rem", color: "#fff" }}>₱{fmt(grandTotal)}</span>
+        </div>
+      </div>
+
+      {/* Tracking */}
+      {order.tracking_number && (
+        <div style={{ margin: "12px 16px 0", padding: "10px 12px", background: "rgba(26,86,219,.06)", borderRadius: "8px", border: "1px solid rgba(26,86,219,.15)" }}>
+          <p style={{ fontSize: "9px", fontWeight: 800, letterSpacing: ".14em", textTransform: "uppercase", color: "rgba(10,13,20,.35)", marginBottom: "4px" }}>Tracking</p>
+          <p style={{ fontFamily: "monospace", fontSize: "13px", fontWeight: 700, color: "#1a56db" }}>{order.tracking_number}</p>
+          {order.courier && <p style={{ fontSize: "10px", color: "rgba(10,13,20,.45)", marginTop: "2px" }}>{order.courier}</p>}
+        </div>
+      )}
+
+      {/* Footer */}
+      <div style={{ padding: "14px 16px 20px", textAlign: "center", borderTop: "1px solid rgba(10,13,20,.06)", marginTop: "14px" }}>
+        <p style={{ fontSize: "11px", color: "rgba(10,13,20,.5)", fontWeight: 700, marginBottom: "4px" }}>
+          Payment Status: <span style={{ color: order.payment_status === "paid" ? "#16a34a" : "#f59e0b", textTransform: "uppercase" }}>{order.payment_status || "pending"}</span>
+        </p>
+        <p style={{ fontSize: "10px", color: "rgba(10,13,20,.35)", lineHeight: 1.6 }}>
+          Thank you for your purchase!<br />
+          <strong>This is an official order receipt from RaidKhalid &amp; Co.</strong>
+        </p>
+      </div>
+    </div>
+  );
+};
+
+// ─── Receipt Modal ────────────────────────────────────────────────────────────
+const ReceiptModal = ({ order, onClose }: { order: any | null; onClose: () => void }) => {
+  const printRef = useRef<HTMLDivElement>(null);
+
+  const handlePrint = () => {
+    const content = document.getElementById("order-receipt-print");
+    if (!content) return;
+    const win = window.open("", "_blank", "width=600,height=800");
+    if (!win) return;
+    win.document.write(`
+      <html>
+        <head>
+          <title>Receipt - Order #${order?.id?.slice(0, 8).toUpperCase()}</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap');
+            body { margin: 0; padding: 20px; background: #fff; font-family: 'Outfit', sans-serif; }
+            * { box-sizing: border-box; }
+          </style>
+        </head>
+        <body>${content.outerHTML}</body>
+      </html>
+    `);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); win.close(); }, 500);
+  };
+
+  if (!order) return null;
+
+  return (
+    <Dialog open={!!order} onOpenChange={onClose}>
+      <DialogContent className="bg-[#111827] text-white border-white/10 max-w-xl max-h-[90vh] overflow-y-auto">
+        <DialogTitle className="flex items-center justify-between">
+          <span className="flex items-center gap-2">
+            <Printer size={16} className="text-indigo-400" />
+            Order Receipt #{order?.id?.slice(0, 8).toUpperCase()}
+          </span>
+          <Button
+            onClick={handlePrint}
+            className="gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-4 py-2 h-8"
+          >
+            <Printer size={13} /> Print Receipt
+          </Button>
+        </DialogTitle>
+        <div ref={printRef} className="rounded-xl overflow-hidden border border-white/10 mt-2">
+          <OrderReceipt order={order} />
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 };
 
 // ─── Delete confirmation modal ────────────────────────────────────────────────
-// FIXED: properly distinguishes between hiding (is_deleted toggle) and hard delete
 function DeleteConfirmModal({
-  order,
-  onClose,
-  onHide,
-  onDeletePermanently,
+  order, onClose, onHide, onDeletePermanently,
 }: {
   order: any | null;
   onClose: () => void;
@@ -78,13 +283,13 @@ function DeleteConfirmModal({
   onDeletePermanently: (order: any) => void;
 }) {
   const [step, setStep] = useState<"choose" | "confirm">("choose");
+  const [deleting, setDeleting] = useState(false);
 
-  // Reset step whenever a new order is passed in
   useEffect(() => { if (order) setStep("choose"); }, [order]);
 
   if (!order) return null;
 
-  const handleClose = () => { setStep("choose"); onClose(); };
+  const handleClose = () => { setStep("choose"); setDeleting(false); onClose(); };
 
   return (
     <Dialog open={!!order} onOpenChange={handleClose}>
@@ -101,17 +306,13 @@ function DeleteConfirmModal({
               </div>
             </DialogTitle>
 
-            {/* Order preview */}
-            <div className="p-3 rounded-xl bg-white/5 border border-white/8 text-sm">
-              <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">
-                Order #{order.id?.slice(0, 8).toUpperCase()}
-              </p>
+            <div className="p-3 rounded-xl bg-white/5 border border-white/[0.08] text-sm">
+              <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Order #{order.id?.slice(0, 8).toUpperCase()}</p>
               <p className="font-medium">{order.customer_name}</p>
               <p className="text-xs text-emerald-400">₱{Number(order.total).toLocaleString()} · {order.status}</p>
             </div>
 
             <div className="flex flex-col gap-2.5">
-              {/* Hide — only shown when the order is NOT already hidden */}
               {!order.is_deleted && (
                 <button
                   onClick={() => { onHide(order); handleClose(); }}
@@ -126,10 +327,9 @@ function DeleteConfirmModal({
                 </button>
               )}
 
-              {/* Delete permanently — always available */}
               <button
                 onClick={() => setStep("confirm")}
-                className="flex items-center gap-3 p-3.5 rounded-xl bg-red-500/8 border border-red-500/20 hover:bg-red-500/12 transition-all text-left w-full">
+                className="flex items-center gap-3 p-3.5 rounded-xl bg-red-500/[0.08] border border-red-500/20 hover:bg-red-500/[0.12] transition-all text-left w-full">
                 <div className="w-8 h-8 rounded-lg bg-red-500/15 flex items-center justify-center shrink-0">
                   <Trash2 size={14} className="text-red-400" />
                 </div>
@@ -140,8 +340,7 @@ function DeleteConfirmModal({
               </button>
             </div>
 
-            <Button variant="ghost" className="w-full border border-white/8 text-slate-400 text-sm"
-              onClick={handleClose}>
+            <Button variant="ghost" className="w-full border border-white/[0.08] text-slate-400 text-sm" onClick={handleClose}>
               Cancel
             </Button>
           </>
@@ -157,7 +356,7 @@ function DeleteConfirmModal({
               </div>
             </DialogTitle>
 
-            <div className="p-3.5 rounded-xl bg-red-500/8 border border-red-500/20 text-sm space-y-1">
+            <div className="p-3.5 rounded-xl bg-red-500/[0.08] border border-red-500/20 text-sm space-y-1">
               <p className="text-red-300 font-medium text-xs">This will permanently delete:</p>
               <ul className="text-slate-400 text-xs space-y-0.5 list-disc list-inside">
                 <li>Order #{order.id?.slice(0, 8).toUpperCase()} and all its data</li>
@@ -169,11 +368,16 @@ function DeleteConfirmModal({
             <div className="flex gap-2">
               <Button
                 className="flex-1 bg-red-600 hover:bg-red-500 text-white gap-1.5 text-sm"
-                onClick={() => { onDeletePermanently(order); setStep("choose"); handleClose(); }}>
-                <Trash2 size={13} /> Yes, delete permanently
+                disabled={deleting}
+                onClick={async () => {
+                  setDeleting(true);
+                  await onDeletePermanently(order);
+                  setDeleting(false);
+                  handleClose();
+                }}>
+                {deleting ? <><RefreshCw size={13} className="animate-spin" /> Deleting...</> : <><Trash2 size={13} /> Yes, delete permanently</>}
               </Button>
-              <Button variant="ghost" className="flex-1 border border-white/10 text-sm"
-                onClick={() => setStep("choose")}>
+              <Button variant="ghost" className="flex-1 border border-white/10 text-sm" onClick={() => setStep("choose")}>
                 Go back
               </Button>
             </div>
@@ -184,77 +388,108 @@ function DeleteConfirmModal({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-
+// ─── Main OrdersPage ──────────────────────────────────────────────────────────
 export default function OrdersPage() {
-  const [orders, setOrders]                 = useState<any[]>([]);
-  const [search, setSearch]                 = useState("");
-  const [statusFilter, setStatusFilter]     = useState("all");
-  const [viewOrder, setViewOrder]           = useState<any>(null);
-  const [updatingId, setUpdatingId]         = useState<string | null>(null);
-  const [shippingModal, setShippingModal]   = useState<any>(null);
+  const [orders, setOrders]               = useState<any[]>([]);
+  const [search, setSearch]               = useState("");
+  const [statusFilter, setStatusFilter]   = useState("all");
+  const [viewOrder, setViewOrder]         = useState<any>(null);
+  const [receiptOrder, setReceiptOrder]   = useState<any>(null);
+  const [updatingId, setUpdatingId]       = useState<string | null>(null);
+  const [shippingModal, setShippingModal] = useState<any>(null);
   const [trackingNumber, setTrackingNumber] = useState("");
-  const [courier, setCourier]               = useState("jnt");
-  const [showHidden, setShowHidden]         = useState(false);
-  const [deleteModal, setDeleteModal]       = useState<any>(null);
+  const [courier, setCourier]             = useState("jnt");
+  const [showHidden, setShowHidden]       = useState(false);
+  const [deleteModal, setDeleteModal]     = useState<any>(null);
+  const [refreshing, setRefreshing]       = useState(false);
 
-  useEffect(() => {
-    fetchOrders();
-    const channel = supabase
-      .channel("admin-orders-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, fetchOrders)
-      .subscribe();
-
-    // Auto-refresh every 30 seconds as backup
-    const interval = setInterval(fetchOrders, 30000);
-
-    return () => {
-      supabase.removeChannel(channel);
-      clearInterval(interval);
-    };
-  }, []);
-
-  const fetchOrders = async () => {
+  // ── Fetch ─────────────────────────────────────────────────────────────────
+  const fetchOrders = useCallback(async (quiet = false) => {
+    if (!quiet) setRefreshing(true);
     const { data, error } = await supabase
       .from("orders")
       .select("*, order_timeline(*), order_items(*)")
       .order("created_at", { ascending: false });
     if (error) console.error("Fetch orders error:", error);
     setOrders(data || []);
-  };
+    if (!quiet) setRefreshing(false);
+  }, []);
 
-  // Hide (soft-delete): toggles is_deleted flag
-  // FIXED: always sets is_deleted = true when hiding from visible list
+  useEffect(() => {
+    fetchOrders();
+
+    // Real-time subscription
+    const channel = supabase
+      .channel("admin-orders-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => fetchOrders(true))
+      .on("postgres_changes", { event: "*", schema: "public", table: "gcash_payments" }, () => fetchOrders(true))
+      .subscribe();
+
+    // Backup polling every 30s
+    const interval = setInterval(() => fetchOrders(true), 30000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
+  }, [fetchOrders]);
+
+  // ── Hide ─────────────────────────────────────────────────────────────────
   const hideOrder = async (id: string) => {
-    const { error } = await supabase
-      .from("orders")
-      .update({ is_deleted: true })
-      .eq("id", id);
+    const { error } = await supabase.from("orders").update({ is_deleted: true }).eq("id", id);
     if (error) { toast.error("Failed to hide order"); return; }
     toast.success("Order hidden");
     setOrders(prev => prev.map(o => o.id === id ? { ...o, is_deleted: true } : o));
   };
 
-  // Restore: clears is_deleted flag
+  // ── Restore ───────────────────────────────────────────────────────────────
   const restoreOrder = async (id: string) => {
-    const { error } = await supabase
-      .from("orders")
-      .update({ is_deleted: false })
-      .eq("id", id);
+    const { error } = await supabase.from("orders").update({ is_deleted: false }).eq("id", id);
     if (error) { toast.error("Failed to restore order"); return; }
     toast.success("Order restored");
     setOrders(prev => prev.map(o => o.id === id ? { ...o, is_deleted: false } : o));
   };
 
-  // Hard delete: permanently removes the row
+  // ── Hard delete — delete child records first to avoid FK errors ───────────
   const deletePermanently = async (order: any) => {
-    const { error } = await supabase.from("orders").delete().eq("id", order.id);
-    if (error) { toast.error("Failed to delete order"); return; }
-    toast.success("Order permanently deleted");
-    setOrders(prev => prev.filter(o => o.id !== order.id));
-    if (viewOrder?.id === order.id) setViewOrder(null);
+    try {
+      // Step 1: delete order_timeline rows
+      const { error: e1 } = await supabase
+        .from("order_timeline")
+        .delete()
+        .eq("order_id", order.id);
+      if (e1) console.warn("order_timeline delete:", e1.message);
+
+     // Step 2: delete order_items rows
+const { error: e2 } = await supabase
+  .from("order_items")
+  .delete()
+  .eq("order_id", order.id);
+if (e2) console.warn("order_items delete:", e2.message);
+
+// Step 2.5: delete gcash_payments rows  ← ADD THIS
+const { error: e25 } = await supabase
+  .from("gcash_payments")
+  .delete()
+  .eq("order_id", order.id);
+if (e25) console.warn("gcash_payments delete:", e25.message);
+
+// Step 3: delete the order itself
+const { error: e3 } = await supabase
+  .from("orders")
+  .delete()
+  .eq("id", order.id);
+
+      toast.success("Order permanently deleted");
+      setOrders(prev => prev.filter(o => o.id !== order.id));
+      if (viewOrder?.id === order.id) setViewOrder(null);
+    } catch (err: any) {
+      console.error("Delete order error:", err);
+      toast.error("Failed to delete: " + (err.message || "Unknown error"));
+    }
   };
 
+  // ── Update status ─────────────────────────────────────────────────────────
   const updateStatus = async (id: string, newStatus: string) => {
     if (newStatus === "shipped") {
       const order = orders.find(o => o.id === id);
@@ -271,25 +506,44 @@ export default function OrdersPage() {
       { status: newStatus, timestamp: now, message: TIMELINE_MESSAGES[newStatus] ?? newStatus },
     ];
 
-    const { error } = await supabase
-      .from("orders")
-      .update({ status: newStatus, status_history: history })
-      .eq("id", id);
+    // When completing, also mark payment as paid
+    const extraFields: Record<string, any> = { status: newStatus, status_history: history };
+    if (newStatus === "completed") {
+      extraFields.payment_status = "paid";
+    }
+
+    const { error } = await supabase.from("orders").update(extraFields).eq("id", id);
 
     if (error) {
-      console.error("Update error:", error);
       toast.error(error.message);
     } else {
       toast.success(`Order marked as ${newStatus.replace(/_/g, " ")}`);
-      setOrders(prev =>
-        prev.map(o => o.id === id ? { ...o, status: newStatus, status_history: history } : o)
-      );
-      if (viewOrder?.id === id)
-        setViewOrder((p: any) => ({ ...p, status: newStatus, status_history: history }));
+      setOrders(prev => prev.map(o => o.id === id ? { ...o, ...extraFields } : o));
+      if (viewOrder?.id === id) setViewOrder((p: any) => ({ ...p, ...extraFields }));
     }
     setUpdatingId(null);
   };
 
+  // ── Mark payment complete (new action) ────────────────────────────────────
+  const markPaymentComplete = async (id: string) => {
+    const now = new Date().toISOString();
+    const order = orders.find(o => o.id === id);
+    const history = [
+      ...(order?.status_history ?? []),
+      { status: "payment_complete", timestamp: now, message: TIMELINE_MESSAGES.payment_complete },
+    ];
+    const { error } = await supabase.from("orders").update({
+      payment_status: "paid",
+      status: "payment_complete",
+      status_history: history,
+    }).eq("id", id);
+    if (error) { toast.error("Failed to update payment"); return; }
+    toast.success("Payment marked as complete ✓");
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, payment_status: "paid", status: "payment_complete", status_history: history } : o));
+    if (viewOrder?.id === id) setViewOrder((p: any) => ({ ...p, payment_status: "paid", status: "payment_complete", status_history: history }));
+  };
+
+  // ── Confirm shipping ──────────────────────────────────────────────────────
   const confirmShipping = async () => {
     if (!trackingNumber.trim()) { toast.error("Please enter a tracking number"); return; }
     const now = new Date().toISOString();
@@ -300,26 +554,20 @@ export default function OrdersPage() {
     const courierInfo = COURIERS.find(c => c.id === courier);
     const courierUrl  = courierInfo?.url ? `${courierInfo.url}${trackingNumber}` : null;
     const { error } = await supabase.from("orders").update({
-      status:          "shipped",
-      status_history:  history,
-      tracking_number: trackingNumber,
-      courier:         courierInfo?.name,
-      courier_url:     courierUrl,
-    }).eq("id", shippingModal.id);
-    if (error) { toast.error("Failed to update shipping"); return; }
-    toast.success("Order marked as shipped! 🚚");
-    const updated = {
       status: "shipped", status_history: history,
       tracking_number: trackingNumber,
       courier: courierInfo?.name, courier_url: courierUrl,
-    };
+    }).eq("id", shippingModal.id);
+    if (error) { toast.error("Failed to update shipping"); return; }
+    toast.success("Order marked as shipped! 🚚");
+    const updated = { status: "shipped", status_history: history, tracking_number: trackingNumber, courier: courierInfo?.name, courier_url: courierUrl };
     setOrders(prev => prev.map(o => o.id === shippingModal.id ? { ...o, ...updated } : o));
     if (viewOrder?.id === shippingModal.id) setViewOrder((p: any) => ({ ...p, ...updated }));
     setShippingModal(null); setTrackingNumber(""); setCourier("jnt");
   };
 
   const getNextStatus = (current: string) => {
-    if (current === "cancelled" || current === "completed") return null;
+    if (current === "cancelled" || current === "completed" || current === "payment_complete") return null;
     const idx = statusFlow.indexOf(current);
     if (idx === -1 || idx === statusFlow.length - 1) return null;
     const next = statusFlow[idx + 1];
@@ -332,29 +580,39 @@ export default function OrdersPage() {
     return matchSearch && !o.is_deleted && (statusFilter === "all" || o.status === statusFilter);
   });
 
-  const visibleOrders  = orders.filter(o => !o.is_deleted);
-  const totalRevenue   = visibleOrders.reduce((s, o) => s + Number(o.total || 0), 0);
-  const completed      = visibleOrders.filter(o => o.status === "completed").length;
-  const pending        = visibleOrders.filter(o => o.status === "pending").length;
-  const shipped        = visibleOrders.filter(o => ["shipped","out_for_delivery"].includes(o.status)).length;
-  const hiddenCount    = orders.filter(o => o.is_deleted).length;
+  const visibleOrders = orders.filter(o => !o.is_deleted);
+  const totalRevenue  = visibleOrders.reduce((s, o) => s + Number(o.total || 0), 0);
+  const completed     = visibleOrders.filter(o => o.status === "completed" || o.status === "payment_complete").length;
+  const pending       = visibleOrders.filter(o => o.status === "pending").length;
+  const shipped       = visibleOrders.filter(o => ["shipped", "out_for_delivery"].includes(o.status)).length;
+  const hiddenCount   = orders.filter(o => o.is_deleted).length;
 
   return (
     <div className="min-h-screen p-6 space-y-6 text-white"
       style={{ background: "linear-gradient(135deg,#0f1117,#141824,#0f1117)" }}>
 
-      <div>
-        <h1 className="text-2xl font-bold tracking-wide">Orders</h1>
-        <p className="text-xs text-slate-400">Manage & track all customer orders · Updates push to customers in real time</p>
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-wide">Orders</h1>
+          <p className="text-xs text-slate-400">Manage &amp; track all customer orders · Updates push in real time</p>
+        </div>
+        <button
+          onClick={() => fetchOrders()}
+          disabled={refreshing}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-300 hover:text-white transition-all"
+          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
+          <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} /> Refresh
+        </button>
       </div>
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Total Orders", value: visibleOrders.length,                icon: ShoppingCart, color: "text-blue-400" },
+          { label: "Total Orders", value: visibleOrders.length,                icon: ShoppingCart, color: "text-blue-400"    },
           { label: "Revenue",      value: `₱${totalRevenue.toLocaleString()}`, icon: TrendingUp,   color: "text-emerald-400" },
-          { label: "Completed",    value: completed,                            icon: CheckCircle,  color: "text-green-400" },
-          { label: "In Transit",   value: shipped,                              icon: Truck,        color: "text-indigo-400" },
+          { label: "Completed",    value: completed,                            icon: CheckCircle,  color: "text-green-400"   },
+          { label: "In Transit",   value: shipped,                              icon: Truck,        color: "text-indigo-400"  },
         ].map(kpi => (
           <div key={kpi.label} className={`${card} p-5 transition-all hover:scale-[1.03]`}>
             <div className="flex justify-between items-center">
@@ -389,18 +647,12 @@ export default function OrdersPage() {
       {/* Orders table */}
       <div className={`${card} p-5`}>
         <div className="flex gap-3 mb-4 flex-wrap">
-          {/* Search */}
           <div className="relative flex-1 min-w-[200px]">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-            <Input
-              placeholder="Search by customer name..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="pl-9 bg-white/5 border-white/10"
-            />
+            <Input placeholder="Search by customer name..." value={search} onChange={e => setSearch(e.target.value)}
+              className="pl-9 bg-white/5 border-white/10" />
           </div>
 
-          {/* Status filter */}
           {!showHidden && (
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-[180px] bg-white/5 border-white/10">
@@ -408,17 +660,14 @@ export default function OrdersPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
-                {statusFlow.map(s => (
-                  <SelectItem key={s} value={s} className="capitalize">{s.replace("_", " ")}</SelectItem>
+                {[...statusFlow, "payment_complete"].map(s => (
+                  <SelectItem key={s} value={s} className="capitalize">{s.replace(/_/g, " ")}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           )}
 
-          {/* Toggle hidden orders */}
-          <Button
-            variant="outline"
-            size="sm"
+          <Button variant="outline" size="sm"
             onClick={() => { setShowHidden(h => !h); setStatusFilter("all"); }}
             className={`gap-1.5 text-xs transition-all ${
               showHidden
@@ -437,6 +686,7 @@ export default function OrdersPage() {
                 <TableHead className="text-slate-400">Customer</TableHead>
                 <TableHead className="text-slate-400">Total</TableHead>
                 <TableHead className="text-slate-400">Status</TableHead>
+                <TableHead className="text-slate-400">Payment</TableHead>
                 <TableHead className="text-slate-400">Tracking</TableHead>
                 <TableHead className="text-slate-400">Date</TableHead>
                 <TableHead className="text-slate-400">Actions</TableHead>
@@ -445,7 +695,7 @@ export default function OrdersPage() {
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-16 text-slate-500">
+                  <TableCell colSpan={8} className="text-center py-16 text-slate-500">
                     <Package size={32} className="mx-auto mb-3 opacity-20" />
                     {showHidden ? "No hidden orders" : "No orders found"}
                   </TableCell>
@@ -453,12 +703,9 @@ export default function OrdersPage() {
               ) : filtered.map(o => {
                 const next = getNextStatus(o.status);
                 return (
-                  <TableRow
-                    key={o.id}
+                  <TableRow key={o.id}
                     className={`border-white/5 hover:bg-white/5 transition-all ${o.is_deleted ? "opacity-50" : ""}`}>
-                    <TableCell className="font-mono text-xs text-indigo-400">
-                      #{o.id.slice(0, 8).toUpperCase()}
-                    </TableCell>
+                    <TableCell className="font-mono text-xs text-indigo-400">#{o.id.slice(0, 8).toUpperCase()}</TableCell>
                     <TableCell>
                       <p className="text-sm font-medium">{o.customer_name}</p>
                       <p className="text-xs text-slate-500">{o.customer_email}</p>
@@ -466,7 +713,12 @@ export default function OrdersPage() {
                     <TableCell className="font-bold">₱{Number(o.total).toLocaleString()}</TableCell>
                     <TableCell>
                       <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[o.status] || "bg-white/10 text-white"}`}>
-                        {STATUS_ICONS[o.status]} {o.status.replace("_", " ")}
+                        {STATUS_ICONS[o.status]} {o.status.replace(/_/g, " ")}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${PAYMENT_STATUS_COLORS[o.payment_status] || "bg-white/10 text-slate-400"}`}>
+                        {o.payment_status || "pending"}
                       </span>
                     </TableCell>
                     <TableCell className="text-xs">
@@ -481,38 +733,45 @@ export default function OrdersPage() {
                       {new Date(o.created_at).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-1">
-                        {/* Advance status — only for visible, non-cancelled, non-completed orders */}
+                      <div className="flex items-center gap-1 flex-wrap">
                         {!o.is_deleted && next && (
                           <Button size="sm" variant="ghost" disabled={updatingId === o.id}
                             onClick={() => updateStatus(o.id, next)}
                             className="text-xs h-7 px-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 gap-1">
                             <ChevronRight size={12} />
-                            {next === "shipped" ? "Ship" : next.replace("_", " ")}
+                            {next === "shipped" ? "Ship" : next.replace(/_/g, " ")}
                           </Button>
                         )}
-                        {/* View */}
+                        {/* Payment Complete button — show when status is approved/processing and not yet payment_complete */}
+                        {!o.is_deleted && o.payment_status !== "paid" && !["cancelled", "payment_complete"].includes(o.status) && (
+                          <Button size="sm" variant="ghost"
+                            onClick={() => markPaymentComplete(o.id)}
+                            className="text-xs h-7 px-2 text-teal-400 hover:text-teal-300 hover:bg-teal-500/10 gap-1">
+                            <CheckCircle size={12} /> Pay ✓
+                          </Button>
+                        )}
                         {!o.is_deleted && (
                           <Button size="icon" variant="ghost" className="h-7 w-7 hover:text-blue-400"
                             onClick={() => setViewOrder(o)}>
                             <Eye size={13} />
                           </Button>
                         )}
-                        {/* Restore (shown only in hidden view) */}
+                        {/* Print receipt button */}
+                        {!o.is_deleted && (
+                          <Button size="icon" variant="ghost" className="h-7 w-7 hover:text-indigo-400"
+                            title="Print Receipt"
+                            onClick={() => setReceiptOrder(o)}>
+                            <Printer size={13} />
+                          </Button>
+                        )}
                         {o.is_deleted && (
-                          <Button
-                            size="icon" variant="ghost"
-                            title="Restore order"
+                          <Button size="icon" variant="ghost" title="Restore order"
                             className="h-7 w-7 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
                             onClick={() => restoreOrder(o.id)}>
                             <RotateCcw size={13} />
                           </Button>
                         )}
-                        {/* Delete/Hide button — opens modal */}
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          title="Remove order"
+                        <Button size="icon" variant="ghost" title="Remove order"
                           className="h-7 w-7 text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
                           onClick={() => setDeleteModal(o)}>
                           <Trash2 size={13} />
@@ -527,6 +786,9 @@ export default function OrdersPage() {
         </div>
       </div>
 
+      {/* Receipt Modal */}
+      <ReceiptModal order={receiptOrder} onClose={() => setReceiptOrder(null)} />
+
       {/* Delete confirmation modal */}
       <DeleteConfirmModal
         order={deleteModal}
@@ -538,9 +800,18 @@ export default function OrdersPage() {
       {/* View Order Modal */}
       <Dialog open={!!viewOrder} onOpenChange={() => setViewOrder(null)}>
         <DialogContent className="bg-[#111827] text-white border-white/10 max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogTitle className="flex items-center gap-2">
-            <Package size={16} className="text-indigo-400" />
-            Order #{viewOrder?.id?.slice(0, 8).toUpperCase()}
+          <DialogTitle className="flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <Package size={16} className="text-indigo-400" />
+              Order #{viewOrder?.id?.slice(0, 8).toUpperCase()}
+            </span>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="gap-1.5 text-xs text-indigo-400 hover:text-indigo-300"
+              onClick={() => { setReceiptOrder(viewOrder); }}>
+              <Printer size={13} /> Receipt
+            </Button>
           </DialogTitle>
           {viewOrder && (
             <div className="text-sm space-y-5">
@@ -551,12 +822,12 @@ export default function OrdersPage() {
                   { label: "Total",    value: `₱${Number(viewOrder.total).toLocaleString()}`, green: true },
                   { label: "Payment",  value: `${viewOrder.payment_method ?? "—"} · ${viewOrder.payment_status ?? "—"}` },
                   { label: "Date",     value: new Date(viewOrder.created_at).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" }) },
-                  { label: "Status",   value: viewOrder.status?.replace("_", " "), badge: true },
+                  { label: "Status",   value: viewOrder.status?.replace(/_/g, " "), badge: true },
                 ].map(f => (
                   <div key={f.label}>
                     <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">{f.label}</p>
                     {f.badge ? (
-                      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[viewOrder.status]}`}>
+                      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[viewOrder.status] || "bg-white/10 text-white"}`}>
                         {STATUS_ICONS[viewOrder.status]} {f.value}
                       </span>
                     ) : (
@@ -564,6 +835,25 @@ export default function OrdersPage() {
                     )}
                   </div>
                 ))}
+              </div>
+
+              {/* Payment status row */}
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
+                <div>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Payment Status</p>
+                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${PAYMENT_STATUS_COLORS[viewOrder.payment_status] || "bg-white/10 text-slate-400"}`}>
+                    {viewOrder.payment_status || "pending"}
+                  </span>
+                </div>
+                {/* Mark Payment Complete button inside modal */}
+                {viewOrder.payment_status !== "paid" && !["cancelled", "payment_complete"].includes(viewOrder.status) && (
+                  <Button
+                    size="sm"
+                    className="ml-auto bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 border border-teal-500/20 text-xs gap-1.5"
+                    onClick={() => markPaymentComplete(viewOrder.id)}>
+                    <CheckCircle size={12} /> Mark Payment Complete
+                  </Button>
+                )}
               </div>
 
               {/* Tracking */}
@@ -597,11 +887,9 @@ export default function OrdersPage() {
                             {i < viewOrder.order_timeline.length - 1 && <div className="w-px h-6 bg-emerald-400/20" />}
                           </div>
                           <div className="pb-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${STATUS_COLORS[entry.status] || "bg-white/10 text-white"}`}>
-                                {STATUS_ICONS[entry.status]} {entry.status.replace("_", " ")}
-                              </span>
-                            </div>
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${STATUS_COLORS[entry.status] || "bg-white/10 text-white"}`}>
+                              {STATUS_ICONS[entry.status]} {entry.status.replace(/_/g, " ")}
+                            </span>
                             <p className="text-xs text-slate-400 mt-0.5">{entry.message}</p>
                             <p className="text-[10px] text-slate-600 mt-0.5">
                               {new Date(entry.created_at).toLocaleString("en-PH", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
@@ -612,11 +900,11 @@ export default function OrdersPage() {
                   </div>
                 ) : (
                   <div className="space-y-0">
-                    {statusFlow.filter(s => s !== "cancelled").map((s, i, arr) => {
+                    {[...statusFlow, "payment_complete"].filter(s => s !== "cancelled").map((s, i, arr) => {
                       const history    = viewOrder.status_history || [];
                       const entry      = history.find((h: any) => h.status === s);
-                      const currentIdx = statusFlow.indexOf(viewOrder.status);
-                      const stepIdx    = statusFlow.indexOf(s);
+                      const currentIdx = [...statusFlow, "payment_complete"].indexOf(viewOrder.status);
+                      const stepIdx    = [...statusFlow, "payment_complete"].indexOf(s);
                       const isDone     = currentIdx >= stepIdx && viewOrder.status !== "cancelled";
                       const isCurrent  = viewOrder.status === s;
                       return (
@@ -627,7 +915,7 @@ export default function OrdersPage() {
                           </div>
                           <div className="pb-1">
                             <p className={`text-xs capitalize font-medium ${isCurrent ? "text-indigo-400" : isDone ? "text-emerald-400" : "text-slate-600"}`}>
-                              {s.replace("_", " ")}
+                              {s.replace(/_/g, " ")}
                             </p>
                             {entry?.timestamp && (
                               <p className="text-[10px] text-slate-500">{new Date(entry.timestamp).toLocaleString()}</p>
@@ -669,8 +957,8 @@ export default function OrdersPage() {
                           </div>
                         </div>
                         <div className="text-right shrink-0">
-                          <p className="text-xs text-slate-300 font-bold">₱{Number(item.price).toLocaleString()}</p>
-                          <p className="text-[10px] text-slate-500">x{item.quantity}</p>
+                          <p className="text-xs text-slate-300 font-bold">₱{Number(item.unit_price ?? item.price ?? 0).toLocaleString()}</p>
+                          <p className="text-[10px] text-slate-500">×{item.quantity}</p>
                         </div>
                       </div>
                     ))}
@@ -692,16 +980,16 @@ export default function OrdersPage() {
                 </div>
               )}
 
-              {/* Action buttons — admin manually controls all status changes */}
+              {/* Action buttons */}
               <div className="space-y-2 pt-1">
                 {getNextStatus(viewOrder.status) && (
                   <Button className="w-full bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/20"
                     onClick={() => updateStatus(viewOrder.id, getNextStatus(viewOrder.status)!)}>
                     <ChevronRight size={14} className="mr-1" />
-                    Mark as {getNextStatus(viewOrder.status)?.replace("_", " ")} →
+                    Mark as {getNextStatus(viewOrder.status)?.replace(/_/g, " ")} →
                   </Button>
                 )}
-                {!["completed", "cancelled"].includes(viewOrder.status) && (
+                {!["completed", "cancelled", "payment_complete"].includes(viewOrder.status) && (
                   <Button variant="ghost" className="w-full text-red-400 hover:bg-red-500/10 border border-red-500/10"
                     onClick={() => { updateStatus(viewOrder.id, "cancelled"); setViewOrder(null); }}>
                     <AlertCircle size={14} className="mr-1" /> Cancel Order

@@ -421,7 +421,7 @@ const ProductsPage = () => {
 
       {/* ── Header ── */}
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <h1 className="font-heading text-2xl uppercase tracking-wider text-foreground">Products</h1>
+        <h1 className="font-heading text-2xl uppercase tracking-wider text-foreground text-white">Products</h1>
 
         <Dialog open={dialogOpen} onOpenChange={(o) => {
           setDialogOpen(o);

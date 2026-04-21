@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ShoppingCart, Heart, Eye, ChevronDown, ChevronRight, SlidersHorizontal, X, Star, Check, ArrowUpDown, Grid3X3, LayoutList, Search, Zap, Tag, Truck, Ruler } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
 import { categoryLabels, categoryIcons, type ProductCategory } from "@/data/products";
+import { toast } from "sonner";
 
 /* ─── Global styles ─── */
 const SHOP_STYLES = `
@@ -96,7 +97,6 @@ const SHOP_STYLES = `
   .zp-size-pill .zp-stock-dot { position:absolute;top:-4px;right:-4px;width:8px;height:8px;border-radius:50%;background:#f59e0b;border:1.5px solid #fff; }
   .stagger-1{animation-delay:.05s} .stagger-2{animation-delay:.12s} .stagger-3{animation-delay:.19s} .stagger-4{animation-delay:.26s}
 
-  /* ── Color swatch in sheet ── */
   .zp-color-swatch {
     width:32px;height:32px;border-radius:50%;cursor:pointer;
     border:2.5px solid transparent;
@@ -133,27 +133,27 @@ interface DbProduct {
   size_inventory?: { size: string; stock: number }[];
   out_of_stock_sizes?: string[];
   colors?: { name: string; hex: string }[];
+  stock_quantity?: number;   // ← was `stock`, now correct
 }
-
 const allCategories = Object.keys(categoryLabels) as ProductCategory[];
 
 const SIDEBAR_COLORS = [
   { name: "Black", hex: "#0a0d14" },
   { name: "White", hex: "#f5f5f5" },
-  { name: "Blue", hex: "#1a56db" },
-  { name: "Red", hex: "#ef4444" },
-  { name: "Gold", hex: "#f59e0b" },
-  { name: "Navy", hex: "#1e3a5f" },
+  { name: "Blue",  hex: "#1a56db" },
+  { name: "Red",   hex: "#ef4444" },
+  { name: "Gold",  hex: "#f59e0b" },
+  { name: "Navy",  hex: "#1e3a5f" },
 ];
 
 const SIZES = ["XS", "S", "M", "L", "XL", "XXL"];
 
 const SORT_OPTIONS = [
-  { value: "newest",     label: "Newest First" },
-  { value: "popular",   label: "Most Popular" },
-  { value: "price_asc", label: "Price: Low to High" },
-  { value: "price_desc",label: "Price: High to Low" },
-  { value: "rating",    label: "Top Rated" },
+  { value: "newest",     label: "Newest First"       },
+  { value: "popular",   label: "Most Popular"        },
+  { value: "price_asc", label: "Price: Low to High"  },
+  { value: "price_desc",label: "Price: High to Low"  },
+  { value: "rating",    label: "Top Rated"           },
 ];
 
 const StarRow = ({ rating = 4.5 }: { rating?: number }) => (
@@ -168,24 +168,24 @@ const StarRow = ({ rating = 4.5 }: { rating?: number }) => (
   </div>
 );
 
-// ── Size + Color Picker Sheet ────────────────────────────────────────────────
+// ── Size + Color Picker Sheet ─────────────────────────────────────────────────
 const SizePickerSheet = ({
   product, onClose, onAddToCart,
 }: {
   product: DbProduct;
   onClose: () => void;
-  onAddToCart: (productId: string, quantity: number, variants?: { selected_size?: string; selected_color?: string; selected_color_hex?: string }) => void;
+  onAddToCart: (productId: string, quantity: number, variants?: { selected_size?: string; selected_color?: string; selected_color_hex?: string }) => Promise<void>;
 }) => {
   const [selectedSize, setSelectedSize]   = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
+  const [adding, setAdding]               = useState(false);
 
-  const sizeInventory = product.size_inventory ?? [];
-  const outOfStock    = product.out_of_stock_sizes ?? [];
+  const sizeInventory  = product.size_inventory  ?? [];
+  const outOfStock     = product.out_of_stock_sizes ?? [];
   const availableSizes = product.available_sizes ?? [];
-  const hasSizes  = availableSizes.length > 0;
-  // Use colors from DB if available, fallback to none
-  const colors    = product.colors ?? [];
-  const hasColors = colors.length > 0;
+  const hasSizes       = availableSizes.length > 0;
+  const colors         = product.colors ?? [];
+  const hasColors      = colors.length > 0;
 
   // Auto-select first color if only one
   useEffect(() => {
@@ -197,19 +197,27 @@ const SizePickerSheet = ({
     ? Math.round((1 - Number(product.price) / Number(product.original_price!)) * 100)
     : 0;
 
-  const getStock = (size: string) => sizeInventory.find(s => s.size === size)?.stock ?? 99;
+  const getStock = (size: string) => {
+    const inv = sizeInventory.find(s => s.size === size);
+    return inv !== undefined ? inv.stock : 99;
+  };
 
   const canAdd = (!hasSizes || selectedSize) && (!hasColors || selectedColor);
 
-  const handleAdd = () => {
-    if (!canAdd) return;
-    const colorHex = colors.find(c => c.name === selectedColor)?.hex;
-    onAddToCart(product.id, 1, {
-      selected_size: selectedSize ?? undefined,
-      selected_color: selectedColor ?? undefined,
-      selected_color_hex: colorHex ?? undefined,
-    });
-    onClose();
+  const handleAdd = async () => {
+    if (!canAdd || adding) return;
+    setAdding(true);
+    try {
+      const colorHex = colors.find(c => c.name === selectedColor)?.hex;
+      await onAddToCart(product.id, 1, {
+        selected_size:      selectedSize  ?? undefined,
+        selected_color:     selectedColor ?? undefined,
+        selected_color_hex: colorHex     ?? undefined,
+      });
+      onClose();
+    } finally {
+      setAdding(false);
+    }
   };
 
   return (
@@ -242,22 +250,13 @@ const SizePickerSheet = ({
             {/* Selected variants preview */}
             <div style={{ display:"flex", gap:"6px", marginTop:"8px", flexWrap:"wrap" }}>
               {selectedColor && (
-                <span style={{
-                  display:"inline-flex", alignItems:"center", gap:"4px",
-                  padding:"2px 8px", borderRadius:"4px",
-                  background:"rgba(10,13,20,.06)", border:"1px solid rgba(10,13,20,.1)",
-                  fontSize:"10px", fontWeight:700, color:"#0a0d14",
-                }}>
+                <span style={{ display:"inline-flex", alignItems:"center", gap:"4px", padding:"2px 8px", borderRadius:"4px", background:"rgba(10,13,20,.06)", border:"1px solid rgba(10,13,20,.1)", fontSize:"10px", fontWeight:700, color:"#0a0d14" }}>
                   <span style={{ width:"8px", height:"8px", borderRadius:"50%", background:colors.find(c=>c.name===selectedColor)?.hex, border:"1px solid rgba(10,13,20,.15)", flexShrink:0 }} />
                   {selectedColor}
                 </span>
               )}
               {selectedSize && (
-                <span style={{
-                  padding:"2px 8px", borderRadius:"4px",
-                  background:"rgba(26,86,219,.1)", border:"1px solid rgba(26,86,219,.15)",
-                  fontSize:"10px", fontWeight:700, color:"#1a56db", textTransform:"uppercase",
-                }}>
+                <span style={{ padding:"2px 8px", borderRadius:"4px", background:"rgba(26,86,219,.1)", border:"1px solid rgba(26,86,219,.15)", fontSize:"10px", fontWeight:700, color:"#1a56db", textTransform:"uppercase" }}>
                   {selectedSize}
                 </span>
               )}
@@ -267,14 +266,12 @@ const SizePickerSheet = ({
 
         <div style={{ height:"1px", background:"rgba(10,13,20,.08)", margin:"18px 0" }} />
 
-        {/* ── COLOR PICKER from database ── */}
+        {/* COLOR PICKER */}
         {hasColors && (
           <div style={{ padding:"0 24px 0" }}>
             <p style={{ fontFamily:"'Outfit',sans-serif", fontSize:"13px", fontWeight:700, color:"#0a0d14", marginBottom:"14px" }}>
               Select Color
-              {selectedColor && (
-                <span style={{ fontWeight:500, color:"rgba(10,13,20,.5)", marginLeft:"8px" }}>— {selectedColor}</span>
-              )}
+              {selectedColor && <span style={{ fontWeight:500, color:"rgba(10,13,20,.5)", marginLeft:"8px" }}>— {selectedColor}</span>}
             </p>
             <div style={{ display:"flex", gap:"12px", flexWrap:"wrap", marginBottom:"4px" }}>
               {colors.map(color => (
@@ -312,15 +309,13 @@ const SizePickerSheet = ({
           </div>
         )}
 
-        {/* ── SIZE PICKER ── */}
+        {/* SIZE PICKER */}
         {hasSizes && (
           <div style={{ padding:"0 24px" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"14px" }}>
               <p style={{ fontFamily:"'Outfit',sans-serif", fontSize:"13px", fontWeight:700, color:"#0a0d14" }}>
                 Select Size
-                {selectedSize && (
-                  <span style={{ fontWeight:500, color:"rgba(10,13,20,.5)", marginLeft:"8px" }}>— {selectedSize}</span>
-                )}
+                {selectedSize && <span style={{ fontWeight:500, color:"rgba(10,13,20,.5)", marginLeft:"8px" }}>— {selectedSize}</span>}
               </p>
               <button style={{ display:"flex", alignItems:"center", gap:"5px", fontSize:"11px", fontWeight:600, color:"#1a56db", background:"none", border:"none", cursor:"pointer" }}>
                 <Ruler size={12} /> Size Guide
@@ -329,20 +324,21 @@ const SizePickerSheet = ({
 
             <div style={{ display:"flex", flexWrap:"wrap", gap:"8px", marginBottom:"6px" }}>
               {availableSizes.map(size => {
-                const stock = getStock(size);
-                const isOos = stock === 0 || outOfStock.includes(size);
-                const isLow = !isOos && stock <= 3;
+                const stock    = getStock(size);
+                const isOos    = stock === 0 || outOfStock.includes(size);
+                const isLow    = !isOos && stock > 0 && stock <= 5;
                 const isSelected = selectedSize === size;
                 return (
                   <button key={size}
                     className={`zp-size-pill${isOos ? " oos" : ""}${isSelected ? " selected" : ""}`}
                     onClick={() => !isOos && setSelectedSize(size)}
                     disabled={isOos}
+                    title={isOos ? "Out of stock" : isLow ? `Only ${stock} left!` : `${stock} in stock`}
                   >
                     {size}
                     {isLow && <span className="zp-stock-dot" />}
-                    {isSelected && stock > 0 && stock <= 10 && (
-                      <span style={{ position:"absolute", bottom:"-18px", left:"50%", transform:"translateX(-50%)", fontSize:"9px", fontWeight:700, color:"#f59e0b", whiteSpace:"nowrap" }}>
+                    {isSelected && !isOos && stock <= 10 && (
+                      <span style={{ position:"absolute", bottom:"-20px", left:"50%", transform:"translateX(-50%)", fontSize:"9px", fontWeight:700, color: isLow ? "#f59e0b" : "#64748b", whiteSpace:"nowrap" }}>
                         {stock} left
                       </span>
                     )}
@@ -353,7 +349,7 @@ const SizePickerSheet = ({
 
             <div style={{ display:"flex", alignItems:"center", gap:"6px", marginTop:"20px", marginBottom:"4px" }}>
               <span style={{ width:"8px", height:"8px", borderRadius:"50%", background:"#f59e0b", border:"1.5px solid rgba(10,13,20,.12)", flexShrink:0 }} />
-              <span style={{ fontSize:"11px", color:"rgba(10,13,20,.45)", fontWeight:500 }}>Low stock</span>
+              <span style={{ fontSize:"11px", color:"rgba(10,13,20,.45)", fontWeight:500 }}>Low stock (≤5)</span>
             </div>
           </div>
         )}
@@ -368,9 +364,8 @@ const SizePickerSheet = ({
 
         <div style={{ height:"1px", background:"rgba(10,13,20,.08)", margin:"20px 0" }} />
 
-        {/* ── CTA ── */}
+        {/* CTA */}
         <div style={{ padding:"0 24px", display:"flex", flexDirection:"column", gap:"10px" }}>
-          {/* Validation message */}
           {!canAdd && (
             <p style={{ fontSize:"11px", color:"#f59e0b", fontWeight:600, textAlign:"center" }}>
               {hasSizes && !selectedSize && hasColors && !selectedColor
@@ -383,19 +378,19 @@ const SizePickerSheet = ({
 
           <button
             onClick={handleAdd}
-            disabled={!canAdd}
+            disabled={!canAdd || adding}
             style={{
               width:"100%", padding:"15px 0",
-              background: canAdd ? "#0a0d14" : "rgba(10,13,20,.12)",
-              color: canAdd ? "#fff" : "rgba(10,13,20,.35)",
-              border:"none", borderRadius:"10px", cursor: canAdd ? "pointer" : "not-allowed",
+              background: canAdd && !adding ? "#0a0d14" : "rgba(10,13,20,.12)",
+              color: canAdd && !adding ? "#fff" : "rgba(10,13,20,.35)",
+              border:"none", borderRadius:"10px", cursor: canAdd && !adding ? "pointer" : "not-allowed",
               fontFamily:"'Outfit',sans-serif", fontSize:"13px", fontWeight:700,
               letterSpacing:".08em", textTransform:"uppercase",
               display:"flex", alignItems:"center", justifyContent:"center", gap:"8px",
               transition:"all .2s ease",
             }}>
             <ShoppingCart size={15} />
-            {canAdd ? "Add to Bag" : "Select Options First"}
+            {adding ? "Adding…" : canAdd ? "Add to Bag" : "Select Options First"}
           </button>
           <button onClick={onClose} style={{
             width:"100%", padding:"13px 0", background:"transparent", color:"rgba(10,13,20,.5)",
@@ -410,7 +405,7 @@ const SizePickerSheet = ({
   );
 };
 
-// ── Product Card ─────────────────────────────────────────────────────────────
+// ── Product Card ──────────────────────────────────────────────────────────────
 const ZProductCard = ({
   product, wished, onWish, onSelectSize, view = "grid", style = {},
 }: {
@@ -421,14 +416,21 @@ const ZProductCard = ({
   view?: "grid" | "list";
   style?: React.CSSProperties;
 }) => {
-  const rating   = product.rating ?? (4 + Math.random()).toFixed(1);
-  const reviews  = product.review_count ?? Math.floor(Math.random() * 150 + 10);
+  const rating      = product.rating ?? (4 + Math.random()).toFixed(1);
+  const reviews     = product.review_count ?? Math.floor(Math.random() * 150 + 10);
   const hasDiscount = product.original_price && Number(product.original_price) > Number(product.price);
   const discountPct = hasDiscount
     ? Math.round((1 - Number(product.price) / Number(product.original_price!)) * 100) : 0;
   const availableSizes = product.available_sizes ?? [];
-  const hasSizes = availableSizes.length > 0;
-  const colors = product.colors ?? [];
+  const hasSizes   = availableSizes.length > 0;
+  const colors     = product.colors ?? [];
+
+  // Show crossed-out sizes that are OOS
+  const getSizeStyle = (s: string) => {
+    const inv = product.size_inventory?.find(i => i.size === s);
+    const oos = inv ? inv.stock === 0 : (product.out_of_stock_sizes ?? []).includes(s);
+    return oos;
+  };
 
   if (view === "list") {
     return (
@@ -458,21 +460,17 @@ const ZProductCard = ({
             <StarRow rating={Number(rating)} />
             <span className="zp-review-count">({reviews})</span>
           </div>
-          {/* Color dots */}
           {colors.length > 0 && (
             <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"2px" }}>
               {colors.map(c => (
-                <span key={c.name} title={c.name} style={{
-                  width:"14px", height:"14px", borderRadius:"50%", background:c.hex,
-                  border:"1.5px solid rgba(10,13,20,.15)", flexShrink:0,
-                }} />
+                <span key={c.name} title={c.name} style={{ width:"14px", height:"14px", borderRadius:"50%", background:c.hex, border:"1.5px solid rgba(10,13,20,.15)", flexShrink:0 }} />
               ))}
             </div>
           )}
           {hasSizes && (
             <div style={{ display:"flex", gap:"4px", flexWrap:"wrap" }}>
               {availableSizes.slice(0, 6).map(s => (
-                <span key={s} style={{ fontSize:"10px", fontWeight:600, padding:"2px 7px", borderRadius:"4px", border:"1px solid rgba(10,13,20,.15)", color:"rgba(10,13,20,.6)" }}>{s}</span>
+                <span key={s} style={{ fontSize:"10px", fontWeight:600, padding:"2px 7px", borderRadius:"4px", border:"1px solid rgba(10,13,20,.15)", color: getSizeStyle(s) ? "rgba(10,13,20,.25)" : "rgba(10,13,20,.6)", textDecoration: getSizeStyle(s) ? "line-through" : "none" }}>{s}</span>
               ))}
             </div>
           )}
@@ -536,14 +534,10 @@ const ZProductCard = ({
           <StarRow rating={Number(rating)} />
           <span className="zp-review-count">({reviews})</span>
         </div>
-        {/* Color dots on card */}
         {colors.length > 0 && (
           <div style={{ display:"flex", gap:"5px", flexWrap:"wrap", marginBottom:"8px", alignItems:"center" }}>
             {colors.map(c => (
-              <span key={c.name} title={c.name} style={{
-                width:"12px", height:"12px", borderRadius:"50%", background:c.hex,
-                border:"1.5px solid rgba(10,13,20,.15)", flexShrink:0,
-              }} />
+              <span key={c.name} title={c.name} style={{ width:"12px", height:"12px", borderRadius:"50%", background:c.hex, border:"1.5px solid rgba(10,13,20,.15)", flexShrink:0 }} />
             ))}
             <span style={{ fontSize:"10px", color:"rgba(10,13,20,.4)", fontWeight:500 }}>
               {colors.length} color{colors.length > 1 ? "s" : ""}
@@ -553,7 +547,7 @@ const ZProductCard = ({
         {hasSizes && (
           <div style={{ display:"flex", gap:"4px", flexWrap:"wrap", marginBottom:"8px" }}>
             {availableSizes.slice(0, 5).map(s => (
-              <span key={s} style={{ fontSize:"10px", fontWeight:600, padding:"2px 7px", borderRadius:"4px", border:"1px solid rgba(10,13,20,.15)", color:"rgba(10,13,20,.55)" }}>{s}</span>
+              <span key={s} style={{ fontSize:"10px", fontWeight:600, padding:"2px 7px", borderRadius:"4px", border:"1px solid rgba(10,13,20,.15)", color: getSizeStyle(s) ? "rgba(10,13,20,.25)" : "rgba(10,13,20,.55)", textDecoration: getSizeStyle(s) ? "line-through" : "none" }}>{s}</span>
             ))}
             {availableSizes.length > 5 && (
               <span style={{ fontSize:"10px", color:"rgba(10,13,20,.4)", fontWeight:500, alignSelf:"center" }}>+{availableSizes.length - 5}</span>
@@ -616,6 +610,17 @@ const ShopPage = () => {
   const [visibleCount, setVisibleCount]     = useState(12);
   const [sizePickerProduct, setSizePickerProduct] = useState<DbProduct | null>(null);
 
+  // ── Fetch + subscribe ───────────────────────────────────────────────────────
+  const fetchProducts = useCallback(async () => {
+    const { data } = await supabase
+      .from("products")
+      .select("*")
+      .eq("in_stock", true)
+      .order("created_at", { ascending: false });
+    setProducts(data || []);
+    setLoading(false);
+  }, []);
+
   useEffect(() => {
     const id = "zp-shop-styles";
     if (!document.getElementById(id)) {
@@ -624,81 +629,125 @@ const ShopPage = () => {
       document.head.appendChild(s);
     }
 
-    const fetchProducts = async () => {
-      const { data } = await supabase.from("products").select("*").eq("in_stock", true).order("created_at", { ascending: false });
-      setProducts(data || []);
-      setLoading(false);
-    };
-
     fetchProducts();
 
-    // Auto-refresh every 30 seconds
+    // Auto-refresh every 30 seconds as backup
     const interval = setInterval(fetchProducts, 30000);
 
-    // Real-time subscription for instant updates
+    // Real-time subscription — re-fetch on any product change (INSERT, UPDATE, DELETE)
     const channel = supabase
-      .channel("shop-products")
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "products" }, fetchProducts)
+      .channel("shop-products-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "products" }, fetchProducts)
       .subscribe();
 
     return () => {
       clearInterval(interval);
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [fetchProducts]);
 
+  // ── Add to cart with IMMEDIATE stock deduction ────────────────────────────
 const handleAddToCart = async (
   productId: string,
   quantity: number,
-  variants?: {
-    selected_size?: string;
-    selected_color?: string;
-    selected_color_hex?: string;
-  }
+  variants?: { selected_size?: string; selected_color?: string; selected_color_hex?: string }
 ) => {
-  // Optimistically add to cart UI immediately
-  addToCart(productId, quantity, variants);
+  const product = products.find(p => p.id === productId);
+  if (!product) return;
 
-  // Deduct stock if a size was selected
   if (variants?.selected_size) {
-    const { data: updatedInventory, error } = await supabase.rpc("deduct_size_stock", {
-      p_id: productId,
-      p_size: variants.selected_size,
-      p_qty: quantity,
-    });
+    const inv          = product.size_inventory?.find(i => i.size === variants.selected_size);
+    const currentStock = inv !== undefined ? inv.stock : 0;
 
-    if (error) {
-      console.error("Stock deduction failed:", error.message);
-    } else {
-      // Parse the returned JSONB array
-      const inventory = updatedInventory as { size: string; stock: number }[];
+    if (currentStock <= 0) {
+      toast.error(`Size ${variants.selected_size} is out of stock`);
+      return;
+    }
 
-      const newOutOfStock = inventory
-        .filter((e) => e.stock === 0)
-        .map((e) => e.size);
+    const optimisticInventory = (product.size_inventory ?? []).map(i =>
+      i.size === variants.selected_size
+        ? { ...i, stock: Math.max(0, i.stock - quantity) }
+        : i
+    );
+    const optimisticOos   = optimisticInventory.filter(i => i.stock === 0).map(i => i.size);
+    const optimisticTotal = Math.max(0, (product.stock_quantity ?? 0) - quantity);
 
-      // Update the products list state
-      setProducts((prev) =>
-        prev.map((p) =>
-          p.id === productId
-            ? { ...p, size_inventory: inventory, out_of_stock_sizes: newOutOfStock }
-            : p
-        )
-      );
+    setProducts(prev => prev.map(p =>
+      p.id === productId
+        ? { ...p, size_inventory: optimisticInventory, out_of_stock_sizes: optimisticOos, stock_quantity: optimisticTotal, in_stock: optimisticTotal > 0 }
+        : p
+    ));
+    setSizePickerProduct(prev =>
+      prev?.id === productId
+        ? { ...prev, size_inventory: optimisticInventory, out_of_stock_sizes: optimisticOos, stock_quantity: optimisticTotal }
+        : prev
+    );
 
-      // Sync the size picker sheet if it's open for this product
-      setSizePickerProduct((prev) =>
-        prev?.id === productId
-          ? { ...prev, size_inventory: inventory, out_of_stock_sizes: newOutOfStock }
-          : prev
-      );
+    addToCart(productId, quantity, variants);
+    toast.success(`${product.name} (${variants.selected_size}) added to bag! 🛍️`);
+
+    try {
+      const { error } = await supabase.rpc("deduct_size_stock", {
+        p_id:   productId,
+        p_size: variants.selected_size,
+        p_qty:  quantity,
+      });
+
+      if (error) {
+        console.error("deduct_size_stock error:", error.message);
+        toast.error("Stock update failed: " + error.message);
+        fetchProducts();
+        return;
+      }
+
+      fetchProducts();
+    } catch (err) {
+      console.error("deduct_size_stock failed:", err);
+      fetchProducts();
+    }
+
+  } else {
+    const currentStock = product.stock_quantity ?? 0;
+
+    if (currentStock <= 0) {
+      toast.error(`${product.name} is out of stock`);
+      return;
+    }
+
+    const newStock = Math.max(0, currentStock - quantity);
+    setProducts(prev => prev.map(p =>
+      p.id === productId
+        ? { ...p, stock_quantity: newStock, in_stock: newStock > 0 }
+        : p
+    ));
+
+    addToCart(productId, quantity, variants);
+    toast.success(`${product.name} added to bag! 🛍️`);
+
+    try {
+      const { error } = await supabase.rpc("deduct_stock", {
+        p_id:  productId,
+        p_qty: quantity,
+      });
+
+      if (error) {
+        console.error("deduct_stock error:", error.message);
+        toast.error("Stock update failed: " + error.message);
+        fetchProducts();
+        return;
+      }
+
+      fetchProducts();
+    } catch (err) {
+      console.error("deduct_stock failed:", err);
+      fetchProducts();
     }
   }
 };
 
-  const toggleWish   = (id: string) => setWishlist(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
-  const toggleColor  = (c: string) => setSelectedColors(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]);
-  const toggleSize   = (s: string) => setSelectedSizes(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
+  const toggleWish  = (id: string) => setWishlist(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+  const toggleColor = (c: string)  => setSelectedColors(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]);
+  const toggleSize  = (s: string)  => setSelectedSizes(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
 
   let filtered = products.filter(p => {
     if (activeCategory !== "all" && p.category !== activeCategory) return false;
@@ -715,8 +764,8 @@ const handleAddToCart = async (
     return 0;
   });
 
-  const catCounts = allCategories.reduce((acc, cat) => { acc[cat] = products.filter(p => p.category === cat).length; return acc; }, {} as Record<string, number>);
-  const maxPrice = Math.max(...products.map(p => Number(p.price)), 5000);
+  const catCounts       = allCategories.reduce((acc, cat) => { acc[cat] = products.filter(p => p.category === cat).length; return acc; }, {} as Record<string, number>);
+  const maxPrice        = Math.max(...products.map(p => Number(p.price)), 5000);
   const activeFiltersCount = (activeCategory !== "all" ? 1 : 0) + selectedColors.length + selectedSizes.length + (priceMax < maxPrice ? 1 : 0);
   const clearAllFilters = () => { setActiveCategory("all"); setSelectedColors([]); setSelectedSizes([]); setPriceMax(maxPrice); setSearch(""); };
   const visibleProducts = filtered.slice(0, visibleCount);
@@ -780,20 +829,20 @@ const handleAddToCart = async (
   return (
     <div style={{ fontFamily:"'Outfit',sans-serif", background:"var(--bg)", minHeight:"100vh" }}>
 
-     {sizePickerProduct && (
-  <SizePickerSheet
-    product={products.find(p => p.id === sizePickerProduct.id) ?? sizePickerProduct}
-    onClose={() => setSizePickerProduct(null)}
-    onAddToCart={handleAddToCart}
-  />
-)}
+      {sizePickerProduct && (
+        <SizePickerSheet
+          product={products.find(p => p.id === sizePickerProduct.id) ?? sizePickerProduct}
+          onClose={() => setSizePickerProduct(null)}
+          onAddToCart={handleAddToCart}
+        />
+      )}
 
       <div className="zp-banner-strip">
         {[
           { icon: <Truck size={15} />, text: "Free Shipping on ₱500+" },
-          { icon: <Zap size={15} />,   text: "Same Day Processing" },
-          { icon: <Tag size={15} />,   text: "Official Merch Only" },
-          { icon: <Check size={15} />, text: "Secure Checkout" },
+          { icon: <Zap size={15} />,   text: "Same Day Processing"     },
+          { icon: <Tag size={15} />,   text: "Official Merch Only"     },
+          { icon: <Check size={15} />, text: "Secure Checkout"         },
         ].map((b, i) => <div key={i} className="zp-banner-item">{b.icon} {b.text}</div>)}
       </div>
 
@@ -814,7 +863,7 @@ const handleAddToCart = async (
             Shop Collection
           </h1>
           <p className="shop-fade-up stagger-2" style={{ fontSize:"15px", color:"rgba(255,255,255,.55)", maxWidth:"480px", lineHeight:1.7, borderLeft:"3px solid #1a56db", paddingLeft:"16px" }}>
-            Gear up with authentic RaidKhalid & Co. apparel, accessories, and collectibles.
+            Gear up with authentic RaidKhalid &amp; Co. apparel, accessories, and collectibles.
           </p>
         </div>
       </div>
