@@ -48,6 +48,7 @@ import CheckoutSuccess from "./pages/CheckoutSuccess";
 import CheckoutCancel from "./pages/CheckoutCancel";
 import TransactionsPage from "./pages/admin/TransactionsPage";
 import ReceiptSettingsPage from "./pages/admin/ReceiptSettingsPage";
+import PaymentSettingsPage from "@/pages/admin/PaymentSettingsPage"; // 
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -102,6 +103,7 @@ const App = () => (
               <Route path="/admin/reports" element={<AdminLayout><AdminReportsPage /></AdminLayout>} />
               <Route path="/admin/transactions" element={<AdminLayout><TransactionsPage /></AdminLayout>} />
               <Route path="/admin/receipt-settings" element={<AdminLayout><ReceiptSettingsPage /></AdminLayout>} />
+              <Route path="/admin/payment-settings" element={<AdminLayout><PaymentSettingsPage /></AdminLayout>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </CartProvider>

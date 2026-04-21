@@ -64,7 +64,8 @@ const TIMELINE_MESSAGES: Record<string, string> = {
   cancelled:        "Order was cancelled",
 };
 
-// ─── NEW: Delete confirmation modal ──────────────────────────────────────────
+// ─── Delete confirmation modal ────────────────────────────────────────────────
+// FIXED: properly distinguishes between hiding (is_deleted toggle) and hard delete
 function DeleteConfirmModal({
   order,
   onClose,
@@ -78,10 +79,15 @@ function DeleteConfirmModal({
 }) {
   const [step, setStep] = useState<"choose" | "confirm">("choose");
 
+  // Reset step whenever a new order is passed in
+  useEffect(() => { if (order) setStep("choose"); }, [order]);
+
   if (!order) return null;
 
+  const handleClose = () => { setStep("choose"); onClose(); };
+
   return (
-    <Dialog open={!!order} onOpenChange={() => { setStep("choose"); onClose(); }}>
+    <Dialog open={!!order} onOpenChange={handleClose}>
       <DialogContent className="bg-[#111827] text-white border-white/10 max-w-sm">
         {step === "choose" ? (
           <>
@@ -105,20 +111,22 @@ function DeleteConfirmModal({
             </div>
 
             <div className="flex flex-col gap-2.5">
-              {/* Hide */}
-              <button
-                onClick={() => { onHide(order); onClose(); }}
-                className="flex items-center gap-3 p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500/15 transition-all text-left w-full">
-                <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center shrink-0">
-                  <EyeOff size={14} className="text-indigo-400" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-indigo-300">Hide order</p>
-                  <p className="text-[11px] text-slate-500">Moves to hidden list · can be restored anytime</p>
-                </div>
-              </button>
+              {/* Hide — only shown when the order is NOT already hidden */}
+              {!order.is_deleted && (
+                <button
+                  onClick={() => { onHide(order); handleClose(); }}
+                  className="flex items-center gap-3 p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500/15 transition-all text-left w-full">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center shrink-0">
+                    <EyeOff size={14} className="text-indigo-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-indigo-300">Hide order</p>
+                    <p className="text-[11px] text-slate-500">Moves to hidden list · can be restored anytime</p>
+                  </div>
+                </button>
+              )}
 
-              {/* Delete permanently */}
+              {/* Delete permanently — always available */}
               <button
                 onClick={() => setStep("confirm")}
                 className="flex items-center gap-3 p-3.5 rounded-xl bg-red-500/8 border border-red-500/20 hover:bg-red-500/12 transition-all text-left w-full">
@@ -133,7 +141,7 @@ function DeleteConfirmModal({
             </div>
 
             <Button variant="ghost" className="w-full border border-white/8 text-slate-400 text-sm"
-              onClick={() => { setStep("choose"); onClose(); }}>
+              onClick={handleClose}>
               Cancel
             </Button>
           </>
@@ -161,7 +169,7 @@ function DeleteConfirmModal({
             <div className="flex gap-2">
               <Button
                 className="flex-1 bg-red-600 hover:bg-red-500 text-white gap-1.5 text-sm"
-                onClick={() => { onDeletePermanently(order); setStep("choose"); onClose(); }}>
+                onClick={() => { onDeletePermanently(order); setStep("choose"); handleClose(); }}>
                 <Trash2 size={13} /> Yes, delete permanently
               </Button>
               <Button variant="ghost" className="flex-1 border border-white/10 text-sm"
@@ -175,6 +183,7 @@ function DeleteConfirmModal({
     </Dialog>
   );
 }
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function OrdersPage() {
@@ -187,15 +196,22 @@ export default function OrdersPage() {
   const [trackingNumber, setTrackingNumber] = useState("");
   const [courier, setCourier]               = useState("jnt");
   const [showHidden, setShowHidden]         = useState(false);
-  const [deleteModal, setDeleteModal]       = useState<any>(null); // NEW
+  const [deleteModal, setDeleteModal]       = useState<any>(null);
 
   useEffect(() => {
     fetchOrders();
     const channel = supabase
       .channel("admin-orders-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => fetchOrders())
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, fetchOrders)
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+
+    // Auto-refresh every 30 seconds as backup
+    const interval = setInterval(fetchOrders, 30000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
   }, []);
 
   const fetchOrders = async () => {
@@ -207,19 +223,30 @@ export default function OrdersPage() {
     setOrders(data || []);
   };
 
-  // UPDATED: cleanly toggles is_deleted
-  const deleteOrder = async (id: string, currentDeleted: boolean) => {
-    const nowHidden = !currentDeleted;
+  // Hide (soft-delete): toggles is_deleted flag
+  // FIXED: always sets is_deleted = true when hiding from visible list
+  const hideOrder = async (id: string) => {
     const { error } = await supabase
       .from("orders")
-      .update({ is_deleted: nowHidden })
+      .update({ is_deleted: true })
       .eq("id", id);
-    if (error) { toast.error("Failed to update order"); return; }
-    toast.success(nowHidden ? "Order hidden" : "Order restored");
-    setOrders(prev => prev.map(o => o.id === id ? { ...o, is_deleted: nowHidden } : o));
+    if (error) { toast.error("Failed to hide order"); return; }
+    toast.success("Order hidden");
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, is_deleted: true } : o));
   };
 
-  // NEW: hard delete from database
+  // Restore: clears is_deleted flag
+  const restoreOrder = async (id: string) => {
+    const { error } = await supabase
+      .from("orders")
+      .update({ is_deleted: false })
+      .eq("id", id);
+    if (error) { toast.error("Failed to restore order"); return; }
+    toast.success("Order restored");
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, is_deleted: false } : o));
+  };
+
+  // Hard delete: permanently removes the row
   const deletePermanently = async (order: any) => {
     const { error } = await supabase.from("orders").delete().eq("id", order.id);
     if (error) { toast.error("Failed to delete order"); return; }
@@ -236,7 +263,7 @@ export default function OrdersPage() {
     }
 
     setUpdatingId(id);
-    const now = new Date().toISOString();
+    const now   = new Date().toISOString();
     const order = orders.find(o => o.id === id);
 
     const history = [
@@ -373,7 +400,7 @@ export default function OrdersPage() {
             />
           </div>
 
-          {/* Status filter — hidden when viewing hidden orders */}
+          {/* Status filter */}
           {!showHidden && (
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-[180px] bg-white/5 border-white/10">
@@ -455,7 +482,7 @@ export default function OrdersPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        {/* Advance status — only for visible orders */}
+                        {/* Advance status — only for visible, non-cancelled, non-completed orders */}
                         {!o.is_deleted && next && (
                           <Button size="sm" variant="ghost" disabled={updatingId === o.id}
                             onClick={() => updateStatus(o.id, next)}
@@ -477,16 +504,16 @@ export default function OrdersPage() {
                             size="icon" variant="ghost"
                             title="Restore order"
                             className="h-7 w-7 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
-                            onClick={() => deleteOrder(o.id, true)}>
+                            onClick={() => restoreOrder(o.id)}>
                             <RotateCcw size={13} />
                           </Button>
                         )}
-                        {/* UPDATED: opens modal with Hide / Delete permanently options */}
+                        {/* Delete/Hide button — opens modal */}
                         <Button
                           size="icon"
                           variant="ghost"
                           title="Remove order"
-                          className={`h-7 w-7 transition-colors ${o.is_deleted ? "text-slate-500 hover:text-red-400 hover:bg-red-500/10" : "text-slate-500 hover:text-red-400 hover:bg-red-500/10"}`}
+                          className="h-7 w-7 text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
                           onClick={() => setDeleteModal(o)}>
                           <Trash2 size={13} />
                         </Button>
@@ -500,11 +527,11 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* NEW: Delete confirmation modal */}
+      {/* Delete confirmation modal */}
       <DeleteConfirmModal
         order={deleteModal}
         onClose={() => setDeleteModal(null)}
-        onHide={(o) => deleteOrder(o.id, !!o.is_deleted)}
+        onHide={(o) => hideOrder(o.id)}
         onDeletePermanently={deletePermanently}
       />
 
@@ -665,7 +692,7 @@ export default function OrdersPage() {
                 </div>
               )}
 
-              {/* Action buttons */}
+              {/* Action buttons — admin manually controls all status changes */}
               <div className="space-y-2 pt-1">
                 {getNextStatus(viewOrder.status) && (
                   <Button className="w-full bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/20"

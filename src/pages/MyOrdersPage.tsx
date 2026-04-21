@@ -39,18 +39,34 @@ const MyOrdersPage = () => {
   const [viewOrder, setViewOrder] = useState<any>(null);
 
   useEffect(() => {
-    if (user) fetchOrders();
-  }, [user]);
+    if (!user) return;
 
-  const fetchOrders = async () => {
-    const { data } = await supabase
-      .from("orders")
-      .select("*")
-      .eq("user_id", user!.id)
-      .order("created_at", { ascending: false });
-    setOrders(data || []);
-    setLoading(false);
-  };
+    const fetchOrders = async () => {
+      const { data } = await supabase
+        .from("orders")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+      setOrders(data || []);
+      setLoading(false);
+    };
+
+    fetchOrders();
+
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(fetchOrders, 30000);
+
+    // Real-time subscription
+    const channel = supabase
+      .channel("my-orders-realtime")
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, fetchOrders)
+      .subscribe();
+
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
 
   const filteredOrders = orders.filter((o) => {
     if (activeTab === "all") return true;

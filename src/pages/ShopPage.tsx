@@ -623,8 +623,28 @@ const ShopPage = () => {
       s.id = id; s.textContent = SHOP_STYLES;
       document.head.appendChild(s);
     }
-    supabase.from("products").select("*").eq("in_stock", true).order("created_at", { ascending: false })
-      .then(({ data }) => { setProducts(data || []); setLoading(false); });
+
+    const fetchProducts = async () => {
+      const { data } = await supabase.from("products").select("*").eq("in_stock", true).order("created_at", { ascending: false });
+      setProducts(data || []);
+      setLoading(false);
+    };
+
+    fetchProducts();
+
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(fetchProducts, 30000);
+
+    // Real-time subscription for instant updates
+    const channel = supabase
+      .channel("shop-products")
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "products" }, fetchProducts)
+      .subscribe();
+
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
 const handleAddToCart = async (
@@ -639,42 +659,41 @@ const handleAddToCart = async (
   // Optimistically add to cart UI immediately
   addToCart(productId, quantity, variants);
 
-  // Only deduct stock if a size was selected
-  if (!variants?.selected_size) return;
+  // Deduct stock if a size was selected
+  if (variants?.selected_size) {
+    const { data: updatedInventory, error } = await supabase.rpc("deduct_size_stock", {
+      p_id: productId,
+      p_size: variants.selected_size,
+      p_qty: quantity,
+    });
 
-  const { data: updatedInventory, error } = await supabase.rpc("deduct_size_stock", {
-    p_id: productId,
-    p_size: variants.selected_size,
-    p_qty: quantity,
-  });
+    if (error) {
+      console.error("Stock deduction failed:", error.message);
+    } else {
+      // Parse the returned JSONB array
+      const inventory = updatedInventory as { size: string; stock: number }[];
 
-  if (error) {
-    console.error("Stock deduction failed:", error.message);
-    return;
+      const newOutOfStock = inventory
+        .filter((e) => e.stock === 0)
+        .map((e) => e.size);
+
+      // Update the products list state
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === productId
+            ? { ...p, size_inventory: inventory, out_of_stock_sizes: newOutOfStock }
+            : p
+        )
+      );
+
+      // Sync the size picker sheet if it's open for this product
+      setSizePickerProduct((prev) =>
+        prev?.id === productId
+          ? { ...prev, size_inventory: inventory, out_of_stock_sizes: newOutOfStock }
+          : prev
+      );
+    }
   }
-
-  // Parse the returned JSONB array
-  const inventory = updatedInventory as { size: string; stock: number }[];
-
-  const newOutOfStock = inventory
-    .filter((e) => e.stock === 0)
-    .map((e) => e.size);
-
-  // Update the products list state
-  setProducts((prev) =>
-    prev.map((p) =>
-      p.id === productId
-        ? { ...p, size_inventory: inventory, out_of_stock_sizes: newOutOfStock }
-        : p
-    )
-  );
-
-  // Sync the size picker sheet if it's open for this product
-  setSizePickerProduct((prev) =>
-    prev?.id === productId
-      ? { ...prev, size_inventory: inventory, out_of_stock_sizes: newOutOfStock }
-      : prev
-  );
 };
 
   const toggleWish   = (id: string) => setWishlist(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });

@@ -9,17 +9,49 @@ import {
   User, Package, Truck, CheckCircle, ShoppingCart, Heart,
   MapPin, LogOut, Clock, XCircle, Edit2, Save, Bell,
   Shield, Star, Ticket, ChevronRight, Camera, Phone, Mail,
-  Calendar, X
+  Calendar, X, AlertCircle, CreditCard,
 } from "lucide-react";
 import { toast } from "sonner";
 
 type SidebarSection = "profile" | "orders" | "notifications" | "vouchers" | "wishlist" | "addresses";
 
+// ── Payment status badge helper ───────────────────────────────────────────────
+// Shows the GCash manual payment approval status inline on an order card
+const GCashPaymentStatusBadge = ({ paymentStatus }: { paymentStatus: string | null }) => {
+  if (!paymentStatus) return null;
+
+  if (paymentStatus === "paid") {
+    return (
+      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">
+        <CheckCircle size={11} />
+        Payment Approved ✓
+      </div>
+    );
+  }
+  if (paymentStatus === "failed") {
+    return (
+      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-medium">
+        <XCircle size={11} />
+        Payment Rejected
+      </div>
+    );
+  }
+  if (paymentStatus === "pending") {
+    return (
+      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium">
+        <Clock size={11} />
+        Payment Pending Approval
+      </div>
+    );
+  }
+  return null;
+};
+
 const ProfilePage = () => {
   const { user, signOut, displayName } = useAuth();
   const { totalItems } = useCart();
   const navigate = useNavigate();
-  const fileRef = useRef<HTMLInputElement>(null);
+  const fileRef  = useRef<HTMLInputElement>(null);
 
   const [orders, setOrders]               = useState<any[]>([]);
   const [profile, setProfile]             = useState<any>(null);
@@ -64,7 +96,7 @@ const ProfilePage = () => {
       setLoading(false);
     });
 
-    // ── Realtime: re-fetch orders when admin updates status ──
+    // ── Realtime: re-fetch orders when admin updates status OR payment_status ──
     const channel = supabase
       .channel("profile-orders-realtime")
       .on("postgres_changes", {
@@ -73,10 +105,21 @@ const ProfilePage = () => {
         table: "orders",
         filter: `user_id=eq.${user.id}`,
       }, (payload) => {
-        // Update just the changed order in state instantly
-        setOrders(prev =>
-          prev.map(o => o.id === payload.new.id ? { ...o, ...payload.new } : o)
-        );
+        setOrders(prev => {
+          const updated = prev.map(o => o.id === payload.new.id ? { ...o, ...payload.new } : o);
+
+          // ── Show toast notifications for payment status changes ──────────────
+          const oldOrder = prev.find(o => o.id === payload.new.id);
+          if (oldOrder && oldOrder.payment_status !== payload.new.payment_status) {
+            if (payload.new.payment_status === "paid") {
+              toast.success(`💙 GCash payment approved for order #${payload.new.id.slice(0, 8).toUpperCase()}!`);
+            } else if (payload.new.payment_status === "failed") {
+              toast.error(`Payment rejected for order #${payload.new.id.slice(0, 8).toUpperCase()}. Please contact support.`);
+            }
+          }
+
+          return updated;
+        });
       })
       .subscribe();
 
@@ -95,7 +138,7 @@ const ProfilePage = () => {
     );
   }
 
-  // ── Status groupings matching admin's exact status flow ──
+  // ── Status groupings ──────────────────────────────────────────────────────
   const pendingOrders    = orders.filter(o => o.status === "pending");
   const processingOrders = orders.filter(o => ["confirmed", "packed"].includes(o.status));
   const shippedOrders    = orders.filter(o => ["shipped", "out_for_delivery", "delivered", "arrived"].includes(o.status));
@@ -111,7 +154,6 @@ const ProfilePage = () => {
     { label: "Cancelled",  icon: XCircle,     orders: cancelledOrders },
   ];
 
-  // ── Progress bar steps matching admin's status flow ──
   const orderStatusSteps = ["Pending", "Confirmed", "Packed", "Shipped", "Delivered", "Completed"];
 
   const getStatusStep = (status: string) => {
@@ -128,7 +170,6 @@ const ProfilePage = () => {
     return map[status] ?? 0;
   };
 
-  // ── Status label + color for the badge ──
   const getStatusStyle = (status: string) => {
     const styles: Record<string, string> = {
       pending:          "bg-amber-100 text-amber-700",
@@ -162,9 +203,9 @@ const ProfilePage = () => {
   const handleSaveProfile = async () => {
     const { error } = await supabase.from("profiles").update({
       display_name: editName,
-      phone: editPhone,
-      birthday: editBirthday,
-      gender: editGender,
+      phone:        editPhone,
+      birthday:     editBirthday,
+      gender:       editGender,
     }).eq("user_id", user.id);
     if (error) { toast.error("Failed to update profile"); return; }
     toast.success("Profile updated!");
@@ -174,7 +215,7 @@ const ProfilePage = () => {
 
   const uploadAvatar = async (file: File) => {
     setUploadingAvatar(true);
-    const ext = file.name.split(".").pop();
+    const ext      = file.name.split(".").pop();
     const fileName = `avatars/${user.id}-${Date.now()}.${ext}`;
     const { error } = await supabase.storage.from("product-images").upload(fileName, file, { upsert: true });
     if (error) { toast.error("Upload failed"); setUploadingAvatar(false); return; }
@@ -191,16 +232,16 @@ const ProfilePage = () => {
     {
       group: "Account",
       items: [
-        { id: "profile" as SidebarSection,       label: "My Profile",    icon: User },
-        { id: "addresses" as SidebarSection,      label: "Addresses",     icon: MapPin,  badge: addressCount },
-        { id: "notifications" as SidebarSection,  label: "Notifications", icon: Bell },
-        { id: "vouchers" as SidebarSection,       label: "Vouchers",      icon: Ticket },
+        { id: "profile"       as SidebarSection, label: "My Profile",    icon: User },
+        { id: "addresses"     as SidebarSection, label: "Addresses",     icon: MapPin,  badge: addressCount },
+        { id: "notifications" as SidebarSection, label: "Notifications", icon: Bell },
+        { id: "vouchers"      as SidebarSection, label: "Vouchers",      icon: Ticket },
       ]
     },
     {
       group: "Shopping",
       items: [
-        { id: "orders" as SidebarSection,   label: "My Orders", icon: Package, badge: orders.length },
+        { id: "orders"   as SidebarSection, label: "My Orders", icon: Package, badge: orders.length },
         { id: "wishlist" as SidebarSection, label: "Wishlist",  icon: Heart,   badge: wishlistCount },
       ]
     }
@@ -428,9 +469,11 @@ const ProfilePage = () => {
                   ) : (
                     <div className="space-y-4">
                       {orderTabs[activeOrderTab].orders.map((order: any) => {
-                        const step = getStatusStep(order.status);
+                        const step        = getStatusStep(order.status);
                         const isCancelled = order.status === "cancelled";
-                        const orderItems = Array.isArray(order.order_items) ? order.order_items : [];
+                        const orderItems  = Array.isArray(order.order_items) ? order.order_items : [];
+                        // ── Detect GCash manual payment ──
+                        const isGCashManual = order.payment_method === "gcash_manual";
 
                         return (
                           <div key={order.id} className="border border-border/50 rounded-xl overflow-hidden">
@@ -440,16 +483,36 @@ const ProfilePage = () => {
                               <p className="text-xs font-mono text-muted-foreground">
                                 Order #{order.id.slice(0, 8).toUpperCase()}
                               </p>
-                              <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-3 flex-wrap justify-end">
                                 <p className="text-xs text-muted-foreground">
                                   {new Date(order.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                                 </p>
-                                {/* ── Live status badge matching admin ── */}
+                                {/* Order status badge */}
                                 <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full uppercase tracking-wide ${getStatusStyle(order.status)}`}>
                                   {getStatusLabel(order.status)}
                                 </span>
                               </div>
                             </div>
+
+                            {/* ── GCash Manual payment status banner ────────────────────────────── */}
+                            {/* Shown only for gcash_manual orders to display payment approval state */}
+                            {isGCashManual && (
+                              <div className={`px-4 py-2.5 border-b border-border/40 flex items-center justify-between gap-3 flex-wrap ${
+                                order.payment_status === "paid"    ? "bg-emerald-50" :
+                                order.payment_status === "failed"  ? "bg-red-50"     :
+                                "bg-amber-50/60"
+                              }`}>
+                                <div className="flex items-center gap-2">
+                                  <CreditCard size={13} className={
+                                    order.payment_status === "paid"   ? "text-emerald-600" :
+                                    order.payment_status === "failed" ? "text-red-500"     :
+                                    "text-amber-600"
+                                  } />
+                                  <span className="text-xs text-muted-foreground font-medium">GCash Manual Payment</span>
+                                </div>
+                                <GCashPaymentStatusBadge paymentStatus={order.payment_status} />
+                              </div>
+                            )}
 
                             {/* Items */}
                             <div className="px-4 py-3 space-y-2">
@@ -494,19 +557,14 @@ const ProfilePage = () => {
                               )}
                             </div>
 
-                            {/* ── Progress tracker ── */}
+                            {/* Progress tracker */}
                             {!isCancelled && (
                               <div className="px-4 py-4 border-t border-border/50 bg-muted/20">
                                 <div className="flex items-start justify-between relative">
-                                  {/* background line */}
                                   <div className="absolute left-0 right-0 top-3 h-0.5 bg-border mx-3" />
-                                  {/* filled line */}
                                   <div
                                     className="absolute top-3 h-0.5 bg-primary transition-all duration-700 mx-3"
-                                    style={{
-                                      left: 0,
-                                      width: `${(step / (orderStatusSteps.length - 1)) * 100}%`,
-                                    }}
+                                    style={{ left: 0, width: `${(step / (orderStatusSteps.length - 1)) * 100}%` }}
                                   />
                                   {orderStatusSteps.map((s, i) => (
                                     <div key={s} className="flex flex-col items-center gap-1.5 relative z-10 flex-1">
@@ -515,7 +573,7 @@ const ProfilePage = () => {
                                         i === step ? "bg-primary border-primary ring-4 ring-primary/20" :
                                         "bg-card border-border"
                                       }`}>
-                                        {i < step && <CheckCircle size={12} className="text-primary-foreground" />}
+                                        {i < step  && <CheckCircle size={12} className="text-primary-foreground" />}
                                         {i === step && <div className="w-2 h-2 rounded-full bg-primary-foreground" />}
                                       </div>
                                       <span className={`text-[9px] text-center leading-tight whitespace-nowrap ${
@@ -601,32 +659,86 @@ const ProfilePage = () => {
                       <Bell size={48} className="mx-auto text-muted-foreground/30 mb-3" />
                       <p className="text-muted-foreground">No notifications yet</p>
                     </div>
-                  ) : orders.slice(0, 10).map((order: any) => (
-                    <div key={order.id} className="flex items-start gap-4 px-6 py-4 hover:bg-muted/30 transition-colors">
-                      <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${getStatusStyle(order.status)}`}>
-                        {order.status === "shipped" || order.status === "out_for_delivery" ? <Truck size={15} /> :
-                         order.status === "completed" ? <CheckCircle size={15} /> :
-                         order.status === "cancelled" ? <XCircle size={15} /> :
-                         <Package size={15} />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-foreground">
-                          Your order <span className="font-medium">#{order.id.slice(0, 8).toUpperCase()}</span> is{" "}
-                          <span className={`font-semibold ${getStatusStyle(order.status).split(" ")[1]}`}>
-                            {getStatusLabel(order.status)}
-                          </span>.
-                        </p>
-                        {order.tracking_number && (
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            Tracking: <span className="font-mono text-primary">{order.tracking_number}</span>
+                  ) : orders.slice(0, 20).flatMap((order: any) => {
+                    // Build notification entries — one for order status + one for payment status if gcash_manual
+                    const entries = [];
+
+                    // ── Order status notification ──
+                    entries.push({ key: `order-${order.id}`, order, type: "order" });
+
+                    // ── GCash payment notification (only if gcash_manual and has a payment_status) ──
+                    if (order.payment_method === "gcash_manual" && order.payment_status) {
+                      entries.push({ key: `payment-${order.id}`, order, type: "payment" });
+                    }
+
+                    return entries;
+                  }).map(({ key, order, type }: any) => {
+                    if (type === "payment") {
+                      // Payment approval notification
+                      const isApproved = order.payment_status === "paid";
+                      const isRejected = order.payment_status === "failed";
+                      return (
+                        <div key={key} className="flex items-start gap-4 px-6 py-4 hover:bg-muted/30 transition-colors">
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                            isApproved ? "bg-emerald-100 text-emerald-600" :
+                            isRejected ? "bg-red-100 text-red-500"         :
+                            "bg-amber-100 text-amber-600"
+                          }`}>
+                            <CreditCard size={15} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-foreground">
+                              GCash payment for order{" "}
+                              <span className="font-medium">#{order.id.slice(0, 8).toUpperCase()}</span>{" "}
+                              {isApproved ? (
+                                <span className="font-semibold text-emerald-600">has been approved ✓</span>
+                              ) : isRejected ? (
+                                <span className="font-semibold text-red-500">has been rejected</span>
+                              ) : (
+                                <span className="font-semibold text-amber-600">is awaiting approval</span>
+                              )}
+                            </p>
+                            {isRejected && (
+                              <p className="text-xs text-muted-foreground mt-0.5">Please contact support if you believe this is an error.</p>
+                            )}
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {new Date(order.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Default: order status notification
+                    return (
+                      <div key={key} className="flex items-start gap-4 px-6 py-4 hover:bg-muted/30 transition-colors">
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${getStatusStyle(order.status)}`}>
+                          {order.status === "shipped" || order.status === "out_for_delivery" ? <Truck size={15} /> :
+                           order.status === "completed"  ? <CheckCircle size={15} /> :
+                           order.status === "cancelled"  ? <XCircle size={15} />    :
+                           <Package size={15} />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-foreground">
+                            Your order{" "}
+                            <span className="font-medium">#{order.id.slice(0, 8).toUpperCase()}</span>{" "}
+                            is{" "}
+                            <span className={`font-semibold ${getStatusStyle(order.status).split(" ")[1]}`}>
+                              {getStatusLabel(order.status)}
+                            </span>.
                           </p>
-                        )}
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {new Date(order.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                        </p>
+                          {order.tracking_number && (
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              Tracking: <span className="font-mono text-primary">{order.tracking_number}</span>
+                            </p>
+                          )}
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {new Date(order.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -651,11 +763,11 @@ const ProfilePage = () => {
         {/* Mobile bottom nav */}
         <div className="md:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border flex z-50">
           {[
-            { id: "profile" as SidebarSection,       icon: User,    label: "Profile" },
-            { id: "orders" as SidebarSection,         icon: Package, label: "Orders" },
-            { id: "wishlist" as SidebarSection,       icon: Heart,   label: "Wishlist" },
-            { id: "addresses" as SidebarSection,      icon: MapPin,  label: "Address" },
-            { id: "notifications" as SidebarSection,  icon: Bell,    label: "Alerts" },
+            { id: "profile"       as SidebarSection, icon: User,    label: "Profile" },
+            { id: "orders"        as SidebarSection, icon: Package, label: "Orders"  },
+            { id: "wishlist"      as SidebarSection, icon: Heart,   label: "Wishlist"},
+            { id: "addresses"     as SidebarSection, icon: MapPin,  label: "Address" },
+            { id: "notifications" as SidebarSection, icon: Bell,    label: "Alerts"  },
           ].map(({ id, icon: Icon, label }) => (
             <button key={id} onClick={() => setActiveSection(id)}
               className={`flex-1 flex flex-col items-center gap-0.5 py-2 text-[10px] transition-colors ${
