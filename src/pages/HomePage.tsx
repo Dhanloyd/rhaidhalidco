@@ -618,27 +618,28 @@ const HomePage = () => {
       </section>
 
       {/* ════════════ TICKER ════════════ */}
-      <div style={{
-        background: "linear-gradient(90deg, #1440c4 0%, #1847d4 50%, #1440c4 100%)",
-        overflow: "hidden", padding: "14px 0",
-        borderTop: "1px solid rgba(255,255,255,.1)",
-        borderBottom: "1px solid rgba(255,255,255,.08)",
-      }}>
-        <div className="ticker-track">
-          {Array.from({ length: 2 }).flatMap(() =>
-            ["RAIDKHALID & CO.", "OFFICIAL BASKETBALL BRAND", "ELEVATE THE GAME", "SHOP NOW", "GET TICKETS", "WATCH HIGHLIGHTS", "NEW COLLECTION"].map((t, i) => (
-              <span key={`${t}-${i}`} style={{
-                fontFamily: "'Bebas Neue',sans-serif",
-                fontSize: "13px", letterSpacing: ".2em",
-                color: "rgba(255,255,255,.82)", whiteSpace: "nowrap",
-                padding: "0 34px",
-              }}>
-                {t} <span style={{ color: "rgba(255,255,255,.24)" }}>◆</span>
-              </span>
-            ))
-          )}
-        </div>
-      </div>
+     {/* ════════════ TICKER ════════════ */}
+<div style={{
+  background: "linear-gradient(90deg, #1440c4 0%, #1847d4 50%, #1440c4 100%)",
+  overflow: "hidden", padding: "14px 0",
+  borderTop: "1px solid rgba(255,255,255,.1)",
+  borderBottom: "1px solid rgba(255,255,255,.08)",
+}}>
+  <div className="ticker-track">
+    {Array.from({ length: 2 }).flatMap((_, outerIndex) =>
+      ["RAIDKHALID & CO.", "OFFICIAL BASKETBALL BRAND", "ELEVATE THE GAME", "SHOP NOW", "GET TICKETS", "WATCH HIGHLIGHTS", "NEW COLLECTION"].map((t, i) => (
+        <span key={`${outerIndex}-${t}-${i}`} style={{
+          fontFamily: "'Bebas Neue',sans-serif",
+          fontSize: "13px", letterSpacing: ".2em",
+          color: "rgba(255,255,255,.82)", whiteSpace: "nowrap",
+          padding: "0 34px",
+        }}>
+          {t} <span style={{ color: "rgba(255,255,255,.24)" }}>◆</span>
+        </span>
+      ))
+    )}
+  </div>
+</div>
 
       {/* ════════════ STATS BAR ════════════ */}
       <Reveal style={{ background: "#fff", borderBottom: "1px solid rgba(5,9,15,.06)" }}>

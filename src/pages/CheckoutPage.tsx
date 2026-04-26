@@ -45,7 +45,8 @@ const ZaloraReceipt = ({
 
   const pmLabels: Record<string, string> = {
     cod:          "Cash on Delivery",
-    gcash:        "GCash / GrabPay",
+
+  
     card:         "Credit / Debit Card",
     gcash_manual: "GCash (Manual Transfer)",
   };

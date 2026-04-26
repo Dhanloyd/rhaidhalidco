@@ -1,27 +1,58 @@
-import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Menu, X, ShoppingCart, User, LogOut, Heart, MapPin, Package, ChevronDown } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { useCart } from "@/hooks/useCart";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import logo from "@/assets/logo.jpg";
 
 const navLinks = [
-  { label: "Home", path: "/" },
-  { label: "About Us", path: "/about" },
-  { label: "Founders", path: "/founders" },
+  { label: "Home",       path: "/"           },
+  { label: "About Us",   path: "/about"      },
+  { label: "Founders",   path: "/founders"   },
   { label: "Activities", path: "/activities" },
-  { label: "Players", path: "/players" },
-  { label: "Shop", path: "/shop" },
-  { label: "Contact", path: "/contact" },
-   { label: "AdminCredentials", path: "/admin/credentials" },
+  { label: "Players",    path: "/players"    },
+  { label: "Shop",       path: "/shop"       },
+  { label: "Contact",    path: "/contact"    },
 ];
 
 const Navbar = () => {
-  const [open, setOpen] = useState(false);
-  const location = useLocation();
-  const { user, signOut, displayName } = useAuth();
-  const { totalItems } = useCart();
+  const [open, setOpen]           = useState(false);
+  const [user, setUser]           = useState<any>(null);
+  const [displayName, setDisplayName] = useState<string | null>(null);
+  const location                  = useLocation();
+  const navigate                  = useNavigate();
+  const { totalItems }            = useCart();
+
+  // ── Get user from Supabase Auth directly — no useAuth needed ─────────────
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setDisplayName(
+        session?.user?.user_metadata?.full_name ||
+        session?.user?.email?.split("@")[0] ||
+        null
+      );
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setDisplayName(
+        session?.user?.user_metadata?.full_name ||
+        session?.user?.email?.split("@")[0] ||
+        null
+      );
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+const handleSignOut = async () => {
+  setUser(null);
+  setDisplayName(null);
+  navigate("/");
+  await supabase.auth.signOut(); // runs after navigation, doesn't block
+};
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-nav/95 backdrop-blur-md border-b border-primary-light/10">
@@ -30,12 +61,17 @@ const Navbar = () => {
           <img src={logo} alt="RaidKhalid & Co." className="h-10 md:h-14 rounded" width={56} height={56} />
         </Link>
 
+        {/* Desktop nav */}
         <div className="hidden lg:flex items-center gap-1">
           {navLinks.map((link) => (
             <Link key={link.path} to={link.path}
               className={`px-3 py-2 text-sm font-medium tracking-wide uppercase transition-colors duration-200 rounded-md ${
-                location.pathname === link.path ? "text-primary-foreground bg-primary/20" : "text-nav-foreground/80 hover:text-primary-foreground hover:bg-primary/10"
-              }`}>{link.label}</Link>
+                location.pathname === link.path
+                  ? "text-primary-foreground bg-primary/20"
+                  : "text-nav-foreground/80 hover:text-primary-foreground hover:bg-primary/10"
+              }`}>
+              {link.label}
+            </Link>
           ))}
 
           <Link to="/wishlist" className="ml-2 p-2 text-nav-foreground/80 hover:text-primary-foreground transition-colors">
@@ -45,7 +81,9 @@ const Navbar = () => {
           <Link to="/cart" className="p-2 text-nav-foreground/80 hover:text-primary-foreground transition-colors relative">
             <ShoppingCart size={20} />
             {totalItems > 0 && (
-              <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">{totalItems}</span>
+              <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
+                {totalItems}
+              </span>
             )}
           </Link>
 
@@ -70,13 +108,15 @@ const Navbar = () => {
                   <Link to="/addresses" className="gap-2"><MapPin size={14} /> Addresses</Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={signOut} className="gap-2 text-destructive">
+                <DropdownMenuItem onClick={handleSignOut} className="gap-2 text-destructive">
                   <LogOut size={14} /> Sign Out
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <Link to="/signin" className="ml-2 px-4 py-2 text-sm font-medium tracking-wide uppercase bg-primary/20 text-primary-foreground rounded-md hover:bg-primary/30 transition-colors">Sign In</Link>
+            <Link to="/signin" className="ml-2 px-4 py-2 text-sm font-medium tracking-wide uppercase bg-primary/20 text-primary-foreground rounded-md hover:bg-primary/30 transition-colors">
+              Sign In
+            </Link>
           )}
         </div>
 
@@ -85,30 +125,52 @@ const Navbar = () => {
         </button>
       </div>
 
+      {/* Mobile nav */}
       {open && (
         <div className="lg:hidden bg-nav border-t border-primary-light/10 animate-fade-in">
           <div className="container mx-auto px-4 py-4 flex flex-col gap-1">
             {navLinks.map((link) => (
               <Link key={link.path} to={link.path} onClick={() => setOpen(false)}
                 className={`px-4 py-3 text-sm font-medium tracking-wide uppercase rounded-md transition-colors ${
-                  location.pathname === link.path ? "text-primary-foreground bg-primary/20" : "text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10"
-                }`}>{link.label}</Link>
+                  location.pathname === link.path
+                    ? "text-primary-foreground bg-primary/20"
+                    : "text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10"
+                }`}>
+                {link.label}
+              </Link>
             ))}
-            <Link to="/cart" onClick={() => setOpen(false)} className="px-4 py-3 text-sm font-medium tracking-wide uppercase text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10 rounded-md flex items-center gap-2">
+            <Link to="/cart" onClick={() => setOpen(false)}
+              className="px-4 py-3 text-sm font-medium tracking-wide uppercase text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10 rounded-md flex items-center gap-2">
               <ShoppingCart size={16} /> Cart {totalItems > 0 && `(${totalItems})`}
             </Link>
-            <Link to="/wishlist" onClick={() => setOpen(false)} className="px-4 py-3 text-sm font-medium tracking-wide uppercase text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10 rounded-md flex items-center gap-2">
+            <Link to="/wishlist" onClick={() => setOpen(false)}
+              className="px-4 py-3 text-sm font-medium tracking-wide uppercase text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10 rounded-md flex items-center gap-2">
               <Heart size={16} /> Wishlist
             </Link>
             {user ? (
               <>
-                <Link to="/profile" onClick={() => setOpen(false)} className="px-4 py-3 text-sm font-medium tracking-wide uppercase text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10 rounded-md flex items-center gap-2"><User size={16} /> My Profile</Link>
-                <Link to="/my-orders" onClick={() => setOpen(false)} className="px-4 py-3 text-sm font-medium tracking-wide uppercase text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10 rounded-md flex items-center gap-2"><Package size={16} /> My Orders</Link>
-                <Link to="/addresses" onClick={() => setOpen(false)} className="px-4 py-3 text-sm font-medium tracking-wide uppercase text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10 rounded-md flex items-center gap-2"><MapPin size={16} /> Addresses</Link>
-                <button onClick={() => { signOut(); setOpen(false); }} className="px-4 py-3 text-sm font-medium tracking-wide uppercase text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10 rounded-md text-left flex items-center gap-2"><LogOut size={16} /> Sign Out</button>
+                <Link to="/profile" onClick={() => setOpen(false)}
+                  className="px-4 py-3 text-sm font-medium tracking-wide uppercase text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10 rounded-md flex items-center gap-2">
+                  <User size={16} /> My Profile
+                </Link>
+                <Link to="/my-orders" onClick={() => setOpen(false)}
+                  className="px-4 py-3 text-sm font-medium tracking-wide uppercase text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10 rounded-md flex items-center gap-2">
+                  <Package size={16} /> My Orders
+                </Link>
+                <Link to="/addresses" onClick={() => setOpen(false)}
+                  className="px-4 py-3 text-sm font-medium tracking-wide uppercase text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10 rounded-md flex items-center gap-2">
+                  <MapPin size={16} /> Addresses
+                </Link>
+                <button onClick={() => { handleSignOut(); setOpen(false); }}
+                  className="px-4 py-3 text-sm font-medium tracking-wide uppercase text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10 rounded-md text-left flex items-center gap-2">
+                  <LogOut size={16} /> Sign Out
+                </button>
               </>
             ) : (
-              <Link to="/signin" onClick={() => setOpen(false)} className="px-4 py-3 text-sm font-medium tracking-wide uppercase text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10 rounded-md">Sign In</Link>
+              <Link to="/signin" onClick={() => setOpen(false)}
+                className="px-4 py-3 text-sm font-medium tracking-wide uppercase text-nav-foreground/70 hover:text-primary-foreground hover:bg-primary/10 rounded-md">
+                Sign In
+              </Link>
             )}
           </div>
         </div>

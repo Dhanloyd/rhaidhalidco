@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 export interface SizeStock {
@@ -53,17 +52,32 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider = ({ children }: { children: ReactNode }) => {
-  const [items, setItems] = useState<CartItem[]>([]);
+  const [items,  setItems]  = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const { user } = useAuth();
+  const [userId, setUserId]  = useState<string | null>(null);
+
+  // ── Get user from Supabase Auth directly — no useAuth needed ─────────────
+  useEffect(() => {
+    // Get current session on mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUserId(session?.user?.id ?? null);
+    });
+
+    // Listen for sign in / sign out
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user?.id ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
-    if (user) fetchCart();
+    if (userId) fetchCart();
     else setItems([]);
-  }, [user]);
+  }, [userId]);
 
   const fetchCart = async () => {
-    if (!user) return;
+    if (!userId) return;
     setLoading(true);
 
     const { data, error } = await supabase
@@ -80,7 +94,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           colors, available_sizes, size_inventory
         )
       `)
-      .eq("user_id", user.id);
+      .eq("user_id", userId);
 
     if (error) {
       console.error("fetchCart error:", error);
@@ -92,8 +106,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       const prod = item.products;
       const sizeInventory: SizeStock[] = prod?.size_inventory ?? [];
       const outOfStockSizes = sizeInventory
-        .filter((s) => s.stock <= 0)
-        .map((s) => s.size);
+        .filter((s: SizeStock) => s.stock <= 0)
+        .map((s: SizeStock) => s.size);
 
       return {
         id: item.id,
@@ -101,9 +115,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         quantity: item.quantity,
         selected_size: item.selected_size ?? null,
         selected_color: item.selected_color ?? null,
-        product: prod
-          ? { ...prod, out_of_stock_sizes: outOfStockSizes }
-          : undefined,
+        product: prod ? { ...prod, out_of_stock_sizes: outOfStockSizes } : undefined,
       };
     });
 
@@ -111,24 +123,16 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     setLoading(false);
   };
 
-  const addToCart = async (
-    productId: string,
-    quantity = 1,
-    variants?: VariantOptions
-  ) => {
-    if (!user) {
-      toast.error("Please sign in to add items to cart");
-      return;
-    }
+  const addToCart = async (productId: string, quantity = 1, variants?: VariantOptions) => {
+    if (!userId) { toast.error("Please sign in to add items to cart"); return; }
 
-    const selectedSize = variants?.selected_size ?? null;
+    const selectedSize  = variants?.selected_size  ?? null;
     const selectedColor = variants?.selected_color ?? null;
 
-    // Use local state to check for existing item (avoids race condition)
     const existing = items.find(
       (i) =>
         i.product_id === productId &&
-        (i.selected_size ?? null) === selectedSize &&
+        (i.selected_size  ?? null) === selectedSize &&
         (i.selected_color ?? null) === selectedColor
     );
 
@@ -138,88 +142,49 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         .update({ quantity: existing.quantity + quantity })
         .eq("id", existing.id);
 
-      if (error) {
-        console.error("UPDATE ERROR:", error);
-        toast.error("Failed to update cart");
-      } else {
-        toast.success("Cart updated!");
-        await fetchCart();
-      }
+      if (error) { toast.error("Failed to update cart"); }
+      else        { toast.success("Cart updated!"); await fetchCart(); }
       return;
     }
 
-    // New combination — insert a new row
-    const payload: any = {
-      user_id: user.id,
-      product_id: productId,
-      quantity,
-    };
-
-    if (selectedSize !== null) payload.selected_size = selectedSize;
+    const payload: any = { user_id: userId, product_id: productId, quantity };
+    if (selectedSize  !== null) payload.selected_size  = selectedSize;
     if (selectedColor !== null) payload.selected_color = selectedColor;
 
     const { error } = await supabase.from("cart_items").insert(payload);
-    if (error) {
-      console.error("INSERT ERROR:", error);
-      toast.error("Failed to add to cart");
-    } else {
-      toast.success("Added to cart!");
-      await fetchCart();
-    }
+    if (error) { toast.error("Failed to add to cart"); }
+    else       { toast.success("Added to cart!"); await fetchCart(); }
   };
 
   const updateQuantity = async (itemId: string, quantity: number) => {
-    if (!user) return;
-    if (quantity <= 0) {
-      await removeFromCart(itemId);
-      return;
-    }
+    if (!userId) return;
+    if (quantity <= 0) { await removeFromCart(itemId); return; }
 
     const { error } = await supabase
-      .from("cart_items")
-      .update({ quantity })
-      .eq("id", itemId);
+      .from("cart_items").update({ quantity }).eq("id", itemId);
 
     if (error) toast.error("Failed to update cart");
-    else await fetchCart();
+    else       await fetchCart();
   };
 
   const removeFromCart = async (itemId: string) => {
-    if (!user) return;
-    const { error } = await supabase
-      .from("cart_items")
-      .delete()
-      .eq("id", itemId);
-
+    if (!userId) return;
+    const { error } = await supabase.from("cart_items").delete().eq("id", itemId);
     if (error) toast.error("Failed to remove item");
-    else await fetchCart();
+    else       await fetchCart();
   };
 
   const clearCart = async () => {
-    if (!user) return;
-    await supabase.from("cart_items").delete().eq("user_id", user.id);
+    if (!userId) return;
+    await supabase.from("cart_items").delete().eq("user_id", userId);
     setItems([]);
   };
 
   const totalItems = items.reduce((sum, i) => sum + i.quantity, 0);
-  const totalPrice = items.reduce(
-    (sum, i) => sum + (i.product?.price || 0) * i.quantity,
-    0
-  );
+  const totalPrice = items.reduce((sum, i) => sum + (i.product?.price || 0) * i.quantity, 0);
 
   return (
-    <CartContext.Provider
-      value={{
-        items,
-        loading,
-        addToCart,
-        updateQuantity,
-        removeFromCart,
-        clearCart,
-        totalItems,
-        totalPrice,
-      }}
-    >
+    <CartContext.Provider value={{ items, loading, addToCart, updateQuantity, removeFromCart, clearCart, totalItems, totalPrice }}>
       {children}
     </CartContext.Provider>
   );

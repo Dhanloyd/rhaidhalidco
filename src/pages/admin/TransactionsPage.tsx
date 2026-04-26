@@ -663,7 +663,21 @@ export default function TransactionsPage() {
     setRefreshing(false);
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+ useEffect(() => {
+  fetchData();
+
+  // Real-time subscription — auto-refresh when orders change
+  const channel = supabase
+    .channel("transactions-orders-realtime")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "orders" },
+      () => fetchData()
+    )
+    .subscribe();
+
+  return () => { supabase.removeChannel(channel); };
+}, [fetchData]);
 
   useEffect(() => {
     let result = [...orders];
