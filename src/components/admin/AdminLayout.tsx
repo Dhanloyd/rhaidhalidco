@@ -5,7 +5,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AdminSidebar } from "./AdminSidebar";
 
 const AdminLayout = ({ children }: { children: ReactNode }) => {
-  const { user, isAdmin, loading } = useAuth();
+const { user, loading } = useAuth();
 
   // 1. Still loading — show spinner
   if (loading) {
@@ -35,10 +35,10 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
   }
 
   // 3. Logged in but not an admin → back to home
-  if (!isAdmin) {
-    return <Navigate to="/" replace />;
-  }
-
+ // 3. Logged in but not an admin → back to home
+if (!user?.role) {
+  return <Navigate to="/admin/login" replace />;
+}
   // 4. Authenticated admin
   return (
     <SidebarProvider>

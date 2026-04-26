@@ -1,122 +1,102 @@
-import { createContext, useContext, useEffect, useState, ReactNode, useRef } from "react";
-import { Session, User } from "@supabase/supabase-js";
+import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
+type AdminRole = "super_admin" | "admin" | null;
+
+interface AdminSession {
+  id: string;
+  username: string;
+  role: AdminRole;
+}
+
 interface AuthContextType {
-  session: Session | null;
-  user: User | null;
+  user: AdminSession | null;
+  role: AdminRole;
   isAdmin: boolean;
   loading: boolean;
   displayName: string | null;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string, displayName?: string, phone?: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  signUp: (email: string, password: string, displayName?: string, phone?: string) => Promise<{ error: Error | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const SESSION_KEY = "rk_admin_session";
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [user,    setUser]    = useState<AdminSession | null>(null);
+  const [role,    setRole]    = useState<AdminRole>(null);
   const [loading, setLoading] = useState(true);
-  const [displayName, setDisplayName] = useState<string | null>(null);
-  const initialised = useRef(false);
 
-  const checkAdmin = async (userId: string) => {
-    const { data } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .eq("role", "admin")
-      .maybeSingle();
-    setIsAdmin(!!data);
-  };
-
-  const fetchProfile = async (userId: string) => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("display_name")
-      .eq("user_id", userId)
-      .maybeSingle();
-    setDisplayName(data?.display_name || null);
-  };
-
+  // Restore session from localStorage on mount
   useEffect(() => {
-    // ── 1. Get session once on mount ──
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await Promise.all([
-          checkAdmin(session.user.id),
-          fetchProfile(session.user.id),
-        ]);
+    try {
+      const stored = localStorage.getItem(SESSION_KEY);
+      if (stored) {
+        const parsed: AdminSession = JSON.parse(stored);
+        setUser(parsed);
+        setRole(parsed.role);
       }
+    } catch {
+      localStorage.removeItem(SESSION_KEY);
+    } finally {
+      // Only set loading false AFTER user and role are set
       setLoading(false);
-      initialised.current = true;
-    });
-
-    // ── 2. Listen for auth changes (sign in / sign out only) ──
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!initialised.current) return; // skip until getSession is done
-        if (event === "SIGNED_OUT") {
-          setSession(null);
-          setUser(null);
-          setIsAdmin(false);
-          setDisplayName(null);
-          return;
-        }
-        if (event === "SIGNED_IN" && session?.user) {
-          setSession(session);
-          setUser(session.user);
-          await Promise.all([
-            checkAdmin(session.user.id),
-            fetchProfile(session.user.id),
-          ]);
-        }
-      }
-    );
-
-    return () => subscription.unsubscribe();
-  }, []); // ← empty deps, runs once only
-
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error as Error | null };
-  };
-
-  const signUp = async (email: string, password: string, name?: string, phone?: string) => {
-    const { data, error } = await supabase.auth.signUp({
-      email, password,
-      options: {
-        emailRedirectTo: window.location.origin,
-        data: { display_name: name || email, phone: phone || "" },
-      },
-    });
-    if (!error && data.user && phone) {
-      await supabase.from("profiles").update({ phone }).eq("user_id", data.user.id);
     }
-    return { error: error as Error | null };
+  }, []);
+
+  const signIn = async (username: string, password: string): Promise<{ error: Error | null }> => {
+    const { data, error } = await supabase
+      .from("admin_accounts")
+      .select("id, username, role, is_active, password_hash")
+      .eq("username", username)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (error || !data) {
+      return { error: new Error("Invalid credentials.") };
+    }
+
+    if (data.password_hash !== password) {
+      return { error: new Error("Invalid credentials.") };
+    }
+
+    const session: AdminSession = {
+      id:       data.id,
+      username: data.username,
+      role:     data.role as AdminRole,
+    };
+
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    setUser(session);
+    setRole(session.role);
+
+    return { error: null };
   };
 
   const signOut = async () => {
-    try {
-      await supabase.auth.signOut({ scope: "local" });
-    } catch (_) {}
-    Object.keys(sessionStorage).forEach((k) => {
-      if (k.startsWith("sb-")) sessionStorage.removeItem(k);
-    });
-    setSession(null);
+    localStorage.removeItem(SESSION_KEY);
     setUser(null);
-    setIsAdmin(false);
-    setDisplayName(null);
-    window.location.href = "/";
+    setRole(null);
+    window.location.href = "/admin/login";
+  };
+
+  const signUp = async (): Promise<{ error: Error | null }> => {
+    return { error: new Error("Sign up is not available for admin accounts.") };
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, isAdmin, loading, displayName, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{
+      user,
+      role,
+      isAdmin:     role === "admin" || role === "super_admin",
+      loading,
+      displayName: user?.username ?? null,
+      signIn,
+      signOut,
+      signUp,
+    }}>
       {children}
     </AuthContext.Provider>
   );

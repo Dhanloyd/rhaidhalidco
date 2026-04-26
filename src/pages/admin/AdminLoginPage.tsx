@@ -8,25 +8,27 @@ import { Lock, Mail } from "lucide-react";
 import logo from "@/assets/logo.jpg";
 
 const AdminLoginPage = () => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [username,  setUsername]  = useState("");
+  const [password,  setPassword]  = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { signIn } = useAuth();
-  const navigate = useNavigate();
+  const navigate   = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
+    if (!username || !password) {
       toast.error("Please fill in all fields.");
       return;
     }
+
     setIsLoading(true);
-    const { error } = await signIn(email, password);
+    const { error } = await signIn(username, password);
     setIsLoading(false);
+
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success("Logged in!");
+      toast.success("Logged in successfully!");
       navigate("/admin");
     }
   };
@@ -43,14 +45,14 @@ const AdminLoginPage = () => {
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-foreground mb-1.5 block">Email</label>
+              <label className="text-sm font-medium text-foreground mb-1.5 block">Username</label>
               <div className="relative">
                 <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@raidkhalid.co"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Enter your username"
                   className="pl-10"
                 />
               </div>

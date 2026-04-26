@@ -14,6 +14,7 @@ const navLinks = [
   { label: "Players", path: "/players" },
   { label: "Shop", path: "/shop" },
   { label: "Contact", path: "/contact" },
+   { label: "AdminCredentials", path: "/admin/credentials" },
 ];
 
 const Navbar = () => {

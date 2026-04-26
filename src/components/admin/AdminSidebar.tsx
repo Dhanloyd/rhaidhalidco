@@ -1,4 +1,4 @@
-import { LayoutDashboard, ShoppingCart, Package, CreditCard, LogOut, Home, Newspaper, Star, Users, UserCheck, Calendar, FileText, Share2, BarChart3, Tag, Zap, Truck, Phone, Info, ClipboardList, Smartphone, Receipt } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, Package, CreditCard, LogOut, Home, Newspaper, Star, Users, UserCheck, Calendar, FileText, Share2, BarChart3, Tag, Zap, Truck, Phone, Info, ClipboardList, Smartphone, Receipt, ShieldCheck } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -9,21 +9,22 @@ import {
 import { Button } from "@/components/ui/button";
 
 const navItems = [
-  { title: "Dashboard",       url: "/admin",              icon: LayoutDashboard },
-  { title: "Orders",          url: "/admin/orders",       icon: ShoppingCart },
-  { title: "Products",        url: "/admin/products",     icon: Package },
-  { title: "Inventory",       url: "/admin/inventory",    icon: Truck },
-  { title: "POS",             url: "/admin/pos",          icon: CreditCard },
-  { title: "Analytics",       url: "/admin/analytics",    icon: BarChart3 },
-  { title: "Vouchers",        url: "/admin/vouchers",     icon: Tag },
-  { title: "Flash Sales",     url: "/admin/flash-sales",  icon: Zap },
-  { title: "Suppliers",       url: "/admin/suppliers",    icon: Users },
-  { title: "Reports",         url: "/admin/reports",      icon: ClipboardList },
-{ title: "Transactions",    url: "/admin/transactions",  icon: CreditCard },
-  { title: "GCash Settings",  url: "/admin/payment-settings", icon: Smartphone },
-  { title: "Receipt Settings", url: "/admin/receipt-settings", icon: Receipt },
+  { title: "Dashboard",        url: "/admin",                   icon: LayoutDashboard },
+  { title: "Orders",           url: "/admin/orders",            icon: ShoppingCart },
+  { title: "Products",         url: "/admin/products",          icon: Package },
+  { title: "Inventory",        url: "/admin/inventory",         icon: Truck },
+  { title: "POS",              url: "/admin/pos",               icon: CreditCard },
+  { title: "Analytics",        url: "/admin/analytics",         icon: BarChart3 },
+  { title: "Vouchers",         url: "/admin/vouchers",          icon: Tag },
+  { title: "Flash Sales",      url: "/admin/flash-sales",       icon: Zap },
+  { title: "Suppliers",        url: "/admin/suppliers",         icon: Users },
+  { title: "Reports",          url: "/admin/reports",           icon: ClipboardList },
+  { title: "Transactions",     url: "/admin/transactions",      icon: CreditCard },
+  { title: "GCash Settings",   url: "/admin/payment-settings",  icon: Smartphone },
+  { title: "Receipt Settings", url: "/admin/receipt-settings",  icon: Receipt },
 ];
 
+// Admin Credentials removed — rendered conditionally below
 const cmsItems = [
   { title: "News",         url: "/admin/news",           icon: Newspaper },
   { title: "Highlights",   url: "/admin/highlights",     icon: Star },
@@ -41,8 +42,9 @@ export function AdminSidebar() {
   const collapsed = state === "collapsed";
   const location = useLocation();
   const navigate = useNavigate();
-  const { signOut, user } = useAuth();
+  const { signOut, user, role } = useAuth();
 
+  const isSuperAdmin = role === "super_admin";
   const isActive = (path: string) => location.pathname === path;
 
   const renderItems = (items: typeof navItems) => items.map((item) => (
@@ -68,15 +70,35 @@ export function AdminSidebar() {
             </div>
           )}
         </div>
+
         <SidebarGroup>
           <SidebarGroupLabel>Operations</SidebarGroupLabel>
-          <SidebarGroupContent><SidebarMenu>{renderItems(navItems)}</SidebarMenu></SidebarGroupContent>
+          <SidebarGroupContent>
+            <SidebarMenu>{renderItems(navItems)}</SidebarMenu>
+          </SidebarGroupContent>
         </SidebarGroup>
+
         <SidebarGroup>
           <SidebarGroupLabel>Content Management</SidebarGroupLabel>
-          <SidebarGroupContent><SidebarMenu>{renderItems(cmsItems)}</SidebarMenu></SidebarGroupContent>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {/* Only show Admin Credentials for super_admin */}
+              {isSuperAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/admin/credentials")}>
+                    <NavLink to="/admin/credentials" end className="hover:bg-muted/50" activeClassName="bg-primary/10 text-primary font-medium">
+                      <ShieldCheck className="mr-2 h-4 w-4" />
+                      {!collapsed && <span>Admin Credentials</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              {renderItems(cmsItems)}
+            </SidebarMenu>
+          </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
       <SidebarFooter className="bg-card border-t border-border p-3 space-y-2">
         <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground" onClick={() => navigate("/")}>
           <Home size={16} /> {!collapsed && "Back to Site"}
@@ -84,7 +106,15 @@ export function AdminSidebar() {
         <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-destructive hover:text-destructive" onClick={signOut}>
           <LogOut size={16} /> {!collapsed && "Sign Out"}
         </Button>
-        {!collapsed && user && <p className="text-xs text-muted-foreground truncate px-2">{user.email}</p>}
+        {!collapsed && user && (
+          <div className="px-2 space-y-0.5">
+            <p className="text-xs text-muted-foreground truncate">{user.username}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider"
+              style={{ color: isSuperAdmin ? "#a78bfa" : "#818cf8" }}>
+              {isSuperAdmin ? "⚡ Super Admin" : "Admin"}
+            </p>
+          </div>
+        )}
       </SidebarFooter>
     </Sidebar>
   );
