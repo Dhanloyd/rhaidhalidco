@@ -54,19 +54,29 @@ export default function AdminLoginPage() {
 
   useEffect(() => { setTimeout(() => setMounted(true), 60); }, []);
 
+  // ✅ Fix 1 & 2: Single source of truth for navigation.
+  // navigate is now in the dep array so the effect is stable.
+  // handleSubmit no longer calls navigate — this effect handles it
+  // once adminUser is actually set in state (after signIn resolves).
   useEffect(() => {
     if (adminUser) navigate("/admin", { replace: true });
-  }, [adminUser]);
+  }, [adminUser, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     if (!username || !password) { setError("Please fill in all fields."); return; }
+
     setIsLoading(true);
-    const { error: err } = await signIn(username, password);
-    setIsLoading(false);
-    if (err) { setError(err); return; }
-    navigate("/admin", { replace: true });
+    // ✅ Fix 3: Use try/finally so isLoading is ALWAYS cleared,
+    // even on the success path where navigation happens async.
+    try {
+      const { error: err } = await signIn(username, password);
+      if (err) setError(err);
+      // No navigate() here — the adminUser effect above handles it.
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
