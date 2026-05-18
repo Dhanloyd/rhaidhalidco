@@ -1,3 +1,4 @@
-# Welcome to your Lovable project
-
-TODO: Document your project here
+## Demo Access
+URL: https://rhaidhalidco.vercel.app/admin/
+Username: demo123
+Password: demo123456
