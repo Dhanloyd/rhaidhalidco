@@ -1,33 +1,86 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Select, SelectContent, SelectItem,
+  SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  Table, TableBody, TableCell, TableHead,
+  TableHeader, TableRow,
+} from "@/components/ui/table";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
   Search, Filter, Eye, Trash2, ShoppingCart,
   TrendingUp, CheckCircle, ChevronRight, Truck,
-  MapPin, Clock, RotateCcw, Package, AlertCircle, EyeOff, RefreshCw, Printer,
+  MapPin, Clock, RotateCcw, Package, AlertCircle,
+  EyeOff, RefreshCw, Printer, Zap,
 } from "lucide-react";
 import logo from "@/assets/logo.jpg";
 
-// ─── Status flow ──────────────────────────────────────────────────────────────
+// ─── Status flow ───────────────────────────────────────────────────────────────
 const statusFlow = [
   "pending", "confirmed", "packed", "shipped",
   "out_for_delivery", "delivered", "arrived", "completed", "cancelled",
 ];
 
-const COURIERS = [
-  { id: "jnt",      name: "J&T Express", url: "https://www.jnt.com.ph/tracking?awb="          },
-  { id: "lbc",      name: "LBC",         url: "https://www.lbcexpress.com/track/?tracking_no=" },
-  { id: "ninjavan", name: "Ninja Van",   url: "https://www.ninjavan.co/en-ph/tracking?id="     },
-  { id: "grab",     name: "GrabExpress", url: ""                                                },
-  { id: "lalamove", name: "Lalamove",    url: ""                                                },
-  { id: "other",    name: "Other",       url: ""                                                },
+// ─── Couriers ─────────────────────────────────────────────────────────────────
+const COURIERS_DOMESTIC = [
+  { id: "jnt",       name: "J&T Express",        url: "https://www.jnt.com.ph/tracking?awb="           },
+  { id: "lbc",       name: "LBC",                url: "https://www.lbcexpress.com/track/?tracking_no="  },
+  { id: "ninjavan",  name: "Ninja Van",           url: "https://www.ninjavan.co/en-ph/tracking?id="      },
+  { id: "grab",      name: "GrabExpress",         url: ""                                                 },
+  { id: "lalamove",  name: "Lalamove",            url: ""                                                 },
 ];
 
+const COURIERS_INTERNATIONAL = [
+  { id: "dhl",       name: "DHL",                url: "https://www.dhl.com/ph-en/home/tracking.html?tracking-id=" },
+  { id: "fedex",     name: "FedEx",              url: "https://www.fedex.com/fedextrack/?trknbr="       },
+  { id: "ups",       name: "UPS",                url: "https://www.ups.com/track?tracknum="             },
+  { id: "ems",       name: "EMS (Philippines)",  url: "https://www.phlpost.gov.ph/mail-tracking?q="     },
+  { id: "cainiao",   name: "Cainiao / AliExpress", url: "https://global.cainiao.com/detail.htm?mailNoList=" },
+  { id: "sfexpress", name: "SF Express",         url: "https://www.sfexpress.com/en/track/?trackingNo=" },
+  { id: "yanwen",    name: "Yanwen / 4PX",       url: "https://track.4px.com/#/result/0/"               },
+  { id: "spx",       name: "Shopee Xpress Intl", url: "https://spx.ph/track?tn="                        },
+  { id: "other",     name: "Other",              url: ""                                                 },
+];
+
+const COURIERS = [...COURIERS_DOMESTIC, ...COURIERS_INTERNATIONAL];
+
+// ─── Tracking number generator ────────────────────────────────────────────────
+function generateTrackingNumber(courierId: string): string {
+  const rand  = (len: number) =>
+    Array.from({ length: len }, () => Math.floor(Math.random() * 10)).join("");
+  const alpha = (len: number) =>
+    Array.from({ length: len }, () =>
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[Math.floor(Math.random() * 26)]).join("");
+  const alnum = (len: number) =>
+    Array.from({ length: len }, () =>
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"[Math.floor(Math.random() * 36)]).join("");
+
+  switch (courierId) {
+    // ── Domestic ────────────────────────────────────────────────────────────
+    case "jnt":       return `6${rand(2)}-${rand(4)}-${rand(7)}`;
+    case "lbc":       return `1${rand(10)}`;
+    case "ninjavan":  return `NVPH-${rand(10)}`;
+    case "grab":      return `GRB-${rand(16)}`;
+    case "lalamove":  return `LLM-${rand(8)}`;
+    // ── International ───────────────────────────────────────────────────────
+    case "dhl":       return `JD${rand(18)}`;
+    case "fedex":     return rand(12);
+    case "ups":       return `1Z${alnum(6)}${rand(2)}${rand(8)}`;
+    case "ems":       return `EE${rand(8)}PH`;
+    case "cainiao":   return `EA${rand(8)}CN`;
+    case "sfexpress": return `SF${rand(10)}`;
+    case "yanwen":    return `UE${rand(8)}YP`;
+    case "spx":       return `SPX-${rand(12)}`;
+    default:          return `TRK-${alpha(4)}${rand(4)}-${rand(6)}`;
+  }
+}
+
+// ─── Style maps ───────────────────────────────────────────────────────────────
 const STATUS_COLORS: Record<string, string> = {
   pending:           "bg-amber-500/15 text-amber-400 border border-amber-500/20",
   confirmed:         "bg-blue-500/15 text-blue-400 border border-blue-500/20",
@@ -38,56 +91,63 @@ const STATUS_COLORS: Record<string, string> = {
   arrived:           "bg-teal-500/15 text-teal-400 border border-teal-500/20",
   completed:         "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20",
   cancelled:         "bg-red-500/15 text-red-400 border border-red-500/20",
-  payment_complete:  "bg-teal-500/15 text-teal-300 border border-teal-400/30",
 };
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
-  pending:          <Clock size={11} />,
-  confirmed:        <CheckCircle size={11} />,
-  packed:           <Package size={11} />,
-  shipped:          <Truck size={11} />,
-  out_for_delivery: <Truck size={11} />,
-  delivered:        <MapPin size={11} />,
-  arrived:          <MapPin size={11} />,
-  completed:        <CheckCircle size={11} />,
-  cancelled:        <AlertCircle size={11} />,
-  payment_complete: <CheckCircle size={11} />,
+  pending:           <Clock size={11} />,
+  confirmed:         <CheckCircle size={11} />,
+  packed:            <Package size={11} />,
+  shipped:           <Truck size={11} />,
+  out_for_delivery:  <Truck size={11} />,
+  delivered:         <MapPin size={11} />,
+  arrived:           <MapPin size={11} />,
+  completed:         <CheckCircle size={11} />,
+  cancelled:         <AlertCircle size={11} />,
 };
 
 const PAYMENT_STATUS_COLORS: Record<string, string> = {
-  paid:             "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20",
-  pending:          "bg-amber-500/15 text-amber-400 border border-amber-500/20",
-  failed:           "bg-red-500/15 text-red-400 border border-red-500/20",
-  payment_complete: "bg-teal-500/15 text-teal-300 border border-teal-400/30",
+  paid:    "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20",
+  pending: "bg-amber-500/15 text-amber-400 border border-amber-500/20",
+  failed:  "bg-red-500/15 text-red-400 border border-red-500/20",
+};
+
+const TIMELINE_MESSAGES: Record<string, string> = {
+  pending:           "Order placed successfully",
+  confirmed:         "Order confirmed by seller",
+  packed:            "Your order is being packed",
+  shipped:           "Order has been shipped",
+  out_for_delivery:  "Out for delivery",
+  delivered:         "Package has been delivered",
+  arrived:           "Package has arrived",
+  completed:         "Order completed. Thank you!",
+  cancelled:         "Order was cancelled",
 };
 
 const card = "bg-white/5 border border-white/10 backdrop-blur-xl rounded-2xl";
 
-const TIMELINE_MESSAGES: Record<string, string> = {
-  pending:          "Order placed successfully",
-  confirmed:        "Order confirmed by seller",
-  packed:           "Your order is being packed",
-  shipped:          "Order has been shipped",
-  out_for_delivery: "Out for delivery",
-  delivered:        "Package has been delivered",
-  arrived:          "Package has arrived",
-  completed:        "Order completed. Thank you!",
-  cancelled:        "Order was cancelled",
-  payment_complete: "Payment has been verified and completed",
-};
+// ─── Timeline insert helper ───────────────────────────────────────────────────
+async function insertTimeline(orderId: string, status: string, message?: string) {
+  const { error } = await supabase.from("order_timeline").insert({
+    order_id: orderId,
+    status,
+    message: message ?? TIMELINE_MESSAGES[status] ?? status,
+  });
+  if (error) console.warn("order_timeline insert:", error.message);
+}
 
-// ─── Print Receipt Component ──────────────────────────────────────────────────
+// ─── Format currency ──────────────────────────────────────────────────────────
+const fmt = (n: number) =>
+  n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// ─── OrderReceipt ─────────────────────────────────────────────────────────────
 const OrderReceipt = ({ order }: { order: any }) => {
-  const fmt = (n: number) =>
-    n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-  const items: any[] = order.order_items || order.items || [];
-  const totalQty = items.reduce((s: number, i: any) => s + (i.quantity ?? 1), 0);
-  const subtotal = Number(order.subtotal || order.total || 0);
-  const discount = Number(order.discount || 0);
-  const shippingFee = Number(order.shipping_fee || 0);
-  const grandTotal = Number(order.total || 0);
-  const orderDate = new Date(order.created_at).toLocaleDateString("en-PH", {
+  const items: any[]  = order.order_items || order.items || [];
+  const totalQty      = items.reduce((s: number, i: any) => s + (i.quantity ?? 1), 0);
+  const subtotal      = Number(order.subtotal || order.total || 0);
+  const discount      = Number(order.discount || 0);
+  const shippingFee   = Number(order.shipping_fee || 0);
+  const grandTotal    = Number(order.total || 0);
+  const orderDate     = new Date(order.created_at).toLocaleDateString("en-PH", {
     year: "numeric", month: "long", day: "numeric",
   });
 
@@ -101,17 +161,10 @@ const OrderReceipt = ({ order }: { order: any }) => {
   return (
     <div id="order-receipt-print" style={{ fontFamily: "'Outfit', system-ui, sans-serif", background: "#fff", maxWidth: "480px", margin: "0 auto" }}>
       {/* Header */}
-      <div style={{ background: "linear-gradient(135deg, #060b18 0%, #0f1f3d 100%)", padding: "24px 20px 20px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
-        <img
-          src={logo}
-          alt="RaidKhalid & Co."
-          style={{ width: "64px", height: "64px", objectFit: "contain", borderRadius: "12px", border: "2px solid rgba(255,255,255,0.15)" }}
-          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-        />
+      <div style={{ background: "linear-gradient(135deg,#060b18 0%,#0f1f3d 100%)", padding: "24px 20px 20px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
+        <img src={logo} alt="RaidKhalid & Co." style={{ width: "64px", height: "64px", objectFit: "contain", borderRadius: "12px", border: "2px solid rgba(255,255,255,0.15)" }} onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
         <div>
-          <p style={{ fontFamily: "sans-serif", fontSize: "1.3rem", fontWeight: 900, letterSpacing: ".06em", color: "#fff", marginBottom: "4px", textTransform: "uppercase" }}>
-            RaidKhalid &amp; Co.
-          </p>
+          <p style={{ fontSize: "1.3rem", fontWeight: 900, letterSpacing: ".06em", color: "#fff", marginBottom: "4px", textTransform: "uppercase" }}>RaidKhalid &amp; Co.</p>
           <p style={{ fontSize: "11px", color: "rgba(255,255,255,.45)", marginBottom: "2px" }}>Admin Order Receipt</p>
           <p style={{ fontSize: "10px", color: "rgba(255,255,255,.3)" }}>{orderDate}</p>
         </div>
@@ -120,10 +173,10 @@ const OrderReceipt = ({ order }: { order: any }) => {
       {/* Meta grid */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", borderBottom: "1px solid rgba(10,13,20,.08)" }}>
         {[
-          { label: "Order #",   value: `#${order.id?.slice(0, 8).toUpperCase()}` },
-          { label: "Date",      value: orderDate },
-          { label: "Customer",  value: order.customer_name },
-          { label: "Payment",   value: pmLabels[order.payment_method] ?? (order.payment_method || "—") },
+          { label: "Order #",  value: `#${order.id?.slice(0, 8).toUpperCase()}` },
+          { label: "Date",     value: orderDate },
+          { label: "Customer", value: order.customer_name },
+          { label: "Payment",  value: pmLabels[order.payment_method] ?? (order.payment_method || "—") },
         ].map((m, i) => (
           <div key={i} style={{ padding: "10px 16px", borderBottom: i < 2 ? "1px solid rgba(10,13,20,.06)" : "none", borderRight: i % 2 === 0 ? "1px solid rgba(10,13,20,.06)" : "none" }}>
             <p style={{ fontSize: "9px", fontWeight: 800, letterSpacing: ".16em", textTransform: "uppercase", color: "rgba(10,13,20,.35)", marginBottom: "2px" }}>{m.label}</p>
@@ -132,7 +185,7 @@ const OrderReceipt = ({ order }: { order: any }) => {
         ))}
       </div>
 
-      {/* Shipping info */}
+      {/* Ship to */}
       <div style={{ padding: "12px 16px", borderBottom: "1px solid rgba(10,13,20,.06)", background: "rgba(10,13,20,.02)" }}>
         <p style={{ fontSize: "9px", fontWeight: 800, letterSpacing: ".16em", textTransform: "uppercase", color: "rgba(10,13,20,.35)", marginBottom: "6px" }}>Ship To</p>
         <p style={{ fontSize: "12px", fontWeight: 700, color: "#0a0d14", marginBottom: "2px" }}>{order.shipping_name || order.customer_name}</p>
@@ -154,30 +207,28 @@ const OrderReceipt = ({ order }: { order: any }) => {
             <span key={h} style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".1em", color: "rgba(10,13,20,.4)", textAlign: h !== "Item" ? "center" : "left" }}>{h}</span>
           ))}
         </div>
-        {items.length === 0 ? (
-          <p style={{ fontSize: "12px", color: "rgba(10,13,20,.4)", padding: "8px 0" }}>No item details available</p>
-        ) : items.map((item: any, i: number) => {
-          const name = item.product_name ?? item.name ?? "Item";
-          const qty = item.quantity ?? 1;
-          const price = Number(item.unit_price ?? item.price ?? 0);
-          const size = item.selected_size ?? null;
-          const color = item.selected_color ?? null;
-          return (
-            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 60px 40px 64px", padding: "7px 8px", alignItems: "center", borderBottom: i < items.length - 1 ? "1px solid rgba(10,13,20,.05)" : "none" }}>
-              <div>
-                <p style={{ fontSize: "11px", fontWeight: 600, color: "#0a0d14", lineHeight: 1.3 }}>{name}</p>
-                <p style={{ fontSize: "10px", color: "rgba(10,13,20,.4)", marginTop: "1px" }}>@ ₱{fmt(price)}</p>
+        {items.length === 0
+          ? <p style={{ fontSize: "12px", color: "rgba(10,13,20,.4)", padding: "8px 0" }}>No item details available</p>
+          : items.map((item: any, i: number) => {
+            const name  = item.product_name ?? item.name ?? "Item";
+            const qty   = item.quantity ?? 1;
+            const price = Number(item.unit_price ?? item.price ?? 0);
+            return (
+              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 60px 40px 64px", padding: "7px 8px", alignItems: "center", borderBottom: i < items.length - 1 ? "1px solid rgba(10,13,20,.05)" : "none" }}>
+                <div>
+                  <p style={{ fontSize: "11px", fontWeight: 600, color: "#0a0d14", lineHeight: 1.3 }}>{name}</p>
+                  <p style={{ fontSize: "10px", color: "rgba(10,13,20,.4)", marginTop: "1px" }}>@ ₱{fmt(price)}</p>
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  {item.selected_size  && <span style={{ display: "inline-block", fontSize: "9px", fontWeight: 700, padding: "2px 5px", borderRadius: "3px", background: "rgba(26,86,219,.08)", color: "#1a56db", textTransform: "uppercase" }}>{item.selected_size}</span>}
+                  {item.selected_color && <p style={{ fontSize: "9px", color: "rgba(10,13,20,.45)", marginTop: "2px" }}>{item.selected_color}</p>}
+                  {!item.selected_size && !item.selected_color && <span style={{ fontSize: "10px", color: "rgba(10,13,20,.3)" }}>—</span>}
+                </div>
+                <div style={{ textAlign: "center", fontSize: "12px", fontWeight: 700, color: "#0a0d14" }}>×{qty}</div>
+                <div style={{ textAlign: "right", fontSize: "12px", fontWeight: 800, color: "#0a0d14" }}>₱{fmt(price * qty)}</div>
               </div>
-              <div style={{ textAlign: "center" }}>
-                {size && <span style={{ display: "inline-block", fontSize: "9px", fontWeight: 700, padding: "2px 5px", borderRadius: "3px", background: "rgba(26,86,219,.08)", color: "#1a56db", textTransform: "uppercase" }}>{size}</span>}
-                {color && <p style={{ fontSize: "9px", color: "rgba(10,13,20,.45)", marginTop: "2px" }}>{color}</p>}
-                {!size && !color && <span style={{ fontSize: "10px", color: "rgba(10,13,20,.3)" }}>—</span>}
-              </div>
-              <div style={{ textAlign: "center", fontSize: "12px", fontWeight: 700, color: "#0a0d14" }}>×{qty}</div>
-              <div style={{ textAlign: "right", fontSize: "12px", fontWeight: 800, color: "#0a0d14" }}>₱{fmt(price * qty)}</div>
-            </div>
-          );
-        })}
+            );
+          })}
       </div>
 
       {/* Totals */}
@@ -198,7 +249,7 @@ const OrderReceipt = ({ order }: { order: any }) => {
         </div>
       </div>
 
-      {/* Tracking */}
+      {/* Tracking on receipt */}
       {order.tracking_number && (
         <div style={{ margin: "12px 16px 0", padding: "10px 12px", background: "rgba(26,86,219,.06)", borderRadius: "8px", border: "1px solid rgba(26,86,219,.15)" }}>
           <p style={{ fontSize: "9px", fontWeight: 800, letterSpacing: ".14em", textTransform: "uppercase", color: "rgba(10,13,20,.35)", marginBottom: "4px" }}>Tracking</p>
@@ -210,7 +261,10 @@ const OrderReceipt = ({ order }: { order: any }) => {
       {/* Footer */}
       <div style={{ padding: "14px 16px 20px", textAlign: "center", borderTop: "1px solid rgba(10,13,20,.06)", marginTop: "14px" }}>
         <p style={{ fontSize: "11px", color: "rgba(10,13,20,.5)", fontWeight: 700, marginBottom: "4px" }}>
-          Payment Status: <span style={{ color: order.payment_status === "paid" ? "#16a34a" : "#f59e0b", textTransform: "uppercase" }}>{order.payment_status || "pending"}</span>
+          Payment Status:{" "}
+          <span style={{ color: order.payment_status === "paid" ? "#16a34a" : "#f59e0b", textTransform: "uppercase" }}>
+            {order.payment_status || "pending"}
+          </span>
         </p>
         <p style={{ fontSize: "10px", color: "rgba(10,13,20,.35)", lineHeight: 1.6 }}>
           Thank you for your purchase!<br />
@@ -221,35 +275,25 @@ const OrderReceipt = ({ order }: { order: any }) => {
   );
 };
 
-// ─── Receipt Modal ────────────────────────────────────────────────────────────
+// ─── ReceiptModal ─────────────────────────────────────────────────────────────
 const ReceiptModal = ({ order, onClose }: { order: any | null; onClose: () => void }) => {
-  const printRef = useRef<HTMLDivElement>(null);
-
   const handlePrint = () => {
     const content = document.getElementById("order-receipt-print");
     if (!content) return;
     const win = window.open("", "_blank", "width=600,height=800");
     if (!win) return;
-    win.document.write(`
-      <html>
-        <head>
-          <title>Receipt - Order #${order?.id?.slice(0, 8).toUpperCase()}</title>
-          <style>
-            @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap');
-            body { margin: 0; padding: 20px; background: #fff; font-family: 'Outfit', sans-serif; }
-            * { box-sizing: border-box; }
-          </style>
-        </head>
-        <body>${content.outerHTML}</body>
-      </html>
-    `);
+    win.document.write(
+      `<html><head><title>Receipt - Order #${order?.id?.slice(0, 8).toUpperCase()}</title>` +
+      `<style>@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap');` +
+      `body{margin:0;padding:20px;background:#fff;font-family:'Outfit',sans-serif;}*{box-sizing:border-box;}</style></head>` +
+      `<body>${content.outerHTML}</body></html>`
+    );
     win.document.close();
     win.focus();
     setTimeout(() => { win.print(); win.close(); }, 500);
   };
 
   if (!order) return null;
-
   return (
     <Dialog open={!!order} onOpenChange={onClose}>
       <DialogContent className="bg-[#111827] text-white border-white/10 max-w-xl max-h-[90vh] overflow-y-auto">
@@ -258,14 +302,11 @@ const ReceiptModal = ({ order, onClose }: { order: any | null; onClose: () => vo
             <Printer size={16} className="text-indigo-400" />
             Order Receipt #{order?.id?.slice(0, 8).toUpperCase()}
           </span>
-          <Button
-            onClick={handlePrint}
-            className="gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-4 py-2 h-8"
-          >
+          <Button onClick={handlePrint} className="gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-4 py-2 h-8">
             <Printer size={13} /> Print Receipt
           </Button>
         </DialogTitle>
-        <div ref={printRef} className="rounded-xl overflow-hidden border border-white/10 mt-2">
+        <div className="rounded-xl overflow-hidden border border-white/10 mt-2">
           <OrderReceipt order={order} />
         </div>
       </DialogContent>
@@ -273,7 +314,7 @@ const ReceiptModal = ({ order, onClose }: { order: any | null; onClose: () => vo
   );
 };
 
-// ─── Delete confirmation modal ────────────────────────────────────────────────
+// ─── DeleteConfirmModal ───────────────────────────────────────────────────────
 function DeleteConfirmModal({
   order, onClose, onHide, onDeletePermanently,
 }: {
@@ -282,13 +323,12 @@ function DeleteConfirmModal({
   onHide: (order: any) => void;
   onDeletePermanently: (order: any) => void;
 }) {
-  const [step, setStep] = useState<"choose" | "confirm">("choose");
+  const [step, setStep]         = useState<"choose" | "confirm">("choose");
   const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => { if (order) setStep("choose"); }, [order]);
+  useEffect(() => { if (order) { setStep("choose"); setDeleting(false); } }, [order]);
 
   if (!order) return null;
-
   const handleClose = () => { setStep("choose"); setDeleting(false); onClose(); };
 
   return (
@@ -326,7 +366,6 @@ function DeleteConfirmModal({
                   </div>
                 </button>
               )}
-
               <button
                 onClick={() => setStep("confirm")}
                 className="flex items-center gap-3 p-3.5 rounded-xl bg-red-500/[0.08] border border-red-500/20 hover:bg-red-500/[0.12] transition-all text-left w-full">
@@ -375,7 +414,9 @@ function DeleteConfirmModal({
                   setDeleting(false);
                   handleClose();
                 }}>
-                {deleting ? <><RefreshCw size={13} className="animate-spin" /> Deleting...</> : <><Trash2 size={13} /> Yes, delete permanently</>}
+                {deleting
+                  ? <><RefreshCw size={13} className="animate-spin" /> Deleting...</>
+                  : <><Trash2 size={13} /> Yes, delete permanently</>}
               </Button>
               <Button variant="ghost" className="flex-1 border border-white/10 text-sm" onClick={() => setStep("choose")}>
                 Go back
@@ -390,205 +431,201 @@ function DeleteConfirmModal({
 
 // ─── Main OrdersPage ──────────────────────────────────────────────────────────
 export default function OrdersPage() {
-  const [orders, setOrders]               = useState<any[]>([]);
-  const [search, setSearch]               = useState("");
-  const [statusFilter, setStatusFilter]   = useState("all");
-  const [viewOrder, setViewOrder]         = useState<any>(null);
-  const [receiptOrder, setReceiptOrder]   = useState<any>(null);
-  const [updatingId, setUpdatingId]       = useState<string | null>(null);
-  const [shippingModal, setShippingModal] = useState<any>(null);
+  const [orders, setOrders]                 = useState<any[]>([]);
+  const [search, setSearch]                 = useState("");
+  const [statusFilter, setStatusFilter]     = useState("all");
+  const [viewOrder, setViewOrder]           = useState<any>(null);
+  const [receiptOrder, setReceiptOrder]     = useState<any>(null);
+  const [updatingId, setUpdatingId]         = useState<string | null>(null);
+  const [shippingModal, setShippingModal]   = useState<any>(null);
   const [trackingNumber, setTrackingNumber] = useState("");
-  const [courier, setCourier]             = useState("jnt");
-  const [showHidden, setShowHidden]       = useState(false);
-  const [deleteModal, setDeleteModal]     = useState<any>(null);
-  const [refreshing, setRefreshing]       = useState(false);
+  const [courier, setCourier]               = useState("jnt");
+  const [showHidden, setShowHidden]         = useState(false);
+  const [deleteModal, setDeleteModal]       = useState<any>(null);
+  const [refreshing, setRefreshing]         = useState(false);
 
-  // ── Fetch ─────────────────────────────────────────────────────────────────
+  // ── Patch helper ─────────────────────────────────────────────────────────────
+  const patchOrders = useCallback((id: string, patch: Record<string, any>) => {
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, ...patch } : o));
+    setViewOrder((prev: any)    => prev?.id === id ? { ...prev, ...patch } : prev);
+    setReceiptOrder((prev: any) => prev?.id === id ? { ...prev, ...patch } : prev);
+  }, []);
+
+  // ── Fetch ─────────────────────────────────────────────────────────────────────
   const fetchOrders = useCallback(async (quiet = false) => {
     if (!quiet) setRefreshing(true);
     const { data, error } = await supabase
       .from("orders")
       .select("*, order_timeline(*), order_items(*)")
       .order("created_at", { ascending: false });
-    if (error) console.error("Fetch orders error:", error);
-    setOrders(data || []);
+
+    if (error) {
+      console.error("Fetch orders error:", error);
+      if (!quiet) toast.error("Failed to load orders");
+    } else {
+      setOrders(data || []);
+      if (data) {
+        setViewOrder((prev: any)    => prev ? (data.find(o => o.id === prev.id) ?? prev) : null);
+        setReceiptOrder((prev: any) => prev ? (data.find(o => o.id === prev.id) ?? prev) : null);
+      }
+    }
     if (!quiet) setRefreshing(false);
   }, []);
 
   useEffect(() => {
     fetchOrders();
-
-    // Real-time subscription
     const channel = supabase
       .channel("admin-orders-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => fetchOrders(true))
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" },         () => fetchOrders(true))
+      .on("postgres_changes", { event: "*", schema: "public", table: "order_timeline" }, () => fetchOrders(true))
+      .on("postgres_changes", { event: "*", schema: "public", table: "order_items" },    () => fetchOrders(true))
       .on("postgres_changes", { event: "*", schema: "public", table: "gcash_payments" }, () => fetchOrders(true))
       .subscribe();
 
-    // Backup polling every 30s
-    const interval = setInterval(() => fetchOrders(true), 30000);
-
-    return () => {
-      supabase.removeChannel(channel);
-      clearInterval(interval);
-    };
+    const interval = setInterval(() => fetchOrders(true), 30_000);
+    return () => { supabase.removeChannel(channel); clearInterval(interval); };
   }, [fetchOrders]);
 
-  // ── Hide ─────────────────────────────────────────────────────────────────
+  // ── Hide ──────────────────────────────────────────────────────────────────────
   const hideOrder = async (id: string) => {
     const { error } = await supabase.from("orders").update({ is_deleted: true }).eq("id", id);
     if (error) { toast.error("Failed to hide order"); return; }
     toast.success("Order hidden");
-    setOrders(prev => prev.map(o => o.id === id ? { ...o, is_deleted: true } : o));
+    patchOrders(id, { is_deleted: true });
   };
 
-  // ── Restore ───────────────────────────────────────────────────────────────
+  // ── Restore ───────────────────────────────────────────────────────────────────
   const restoreOrder = async (id: string) => {
     const { error } = await supabase.from("orders").update({ is_deleted: false }).eq("id", id);
     if (error) { toast.error("Failed to restore order"); return; }
     toast.success("Order restored");
-    setOrders(prev => prev.map(o => o.id === id ? { ...o, is_deleted: false } : o));
+    patchOrders(id, { is_deleted: false });
   };
 
-  // ── Hard delete — delete child records first to avoid FK errors ───────────
+  // ── Hard delete ───────────────────────────────────────────────────────────────
   const deletePermanently = async (order: any) => {
     try {
-      // Step 1: delete order_timeline rows
-      const { error: e1 } = await supabase
-        .from("order_timeline")
-        .delete()
-        .eq("order_id", order.id);
-      if (e1) console.warn("order_timeline delete:", e1.message);
-
-     // Step 2: delete order_items rows
-const { error: e2 } = await supabase
-  .from("order_items")
-  .delete()
-  .eq("order_id", order.id);
-if (e2) console.warn("order_items delete:", e2.message);
-
-// Step 2.5: delete gcash_payments rows  ← ADD THIS
-const { error: e25 } = await supabase
-  .from("gcash_payments")
-  .delete()
-  .eq("order_id", order.id);
-if (e25) console.warn("gcash_payments delete:", e25.message);
-
-// Step 3: delete the order itself
-const { error: e3 } = await supabase
-  .from("orders")
-  .delete()
-  .eq("id", order.id);
-
+      await Promise.all([
+        supabase.from("order_timeline").delete().eq("order_id", order.id),
+        supabase.from("order_items").delete().eq("order_id", order.id),
+        supabase.from("gcash_payments").delete().eq("order_id", order.id),
+      ]);
+      const { error } = await supabase.from("orders").delete().eq("id", order.id);
+      if (error) { toast.error("Failed to delete order: " + error.message); return; }
       toast.success("Order permanently deleted");
       setOrders(prev => prev.filter(o => o.id !== order.id));
-      if (viewOrder?.id === order.id) setViewOrder(null);
+      if (viewOrder?.id   === order.id) setViewOrder(null);
+      if (receiptOrder?.id === order.id) setReceiptOrder(null);
     } catch (err: any) {
       console.error("Delete order error:", err);
       toast.error("Failed to delete: " + (err.message || "Unknown error"));
     }
   };
 
-  // ── Update status ─────────────────────────────────────────────────────────
+  // ── Update delivery status ────────────────────────────────────────────────────
   const updateStatus = async (id: string, newStatus: string) => {
     if (newStatus === "shipped") {
-      const order = orders.find(o => o.id === id);
-      setShippingModal(order);
+      setShippingModal(orders.find(o => o.id === id) ?? null);
       return;
     }
-
     setUpdatingId(id);
-    const now   = new Date().toISOString();
-    const order = orders.find(o => o.id === id);
-
-    const history = [
-      ...(order?.status_history ?? []),
-      { status: newStatus, timestamp: now, message: TIMELINE_MESSAGES[newStatus] ?? newStatus },
-    ];
-
-    // When completing, also mark payment as paid
-    const extraFields: Record<string, any> = { status: newStatus, status_history: history };
-    if (newStatus === "completed") {
-      extraFields.payment_status = "paid";
-    }
+    const extraFields: Record<string, any> = { status: newStatus };
+    if (newStatus === "completed") extraFields.payment_status = "paid";
 
     const { error } = await supabase.from("orders").update(extraFields).eq("id", id);
-
     if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success(`Order marked as ${newStatus.replace(/_/g, " ")}`);
-      setOrders(prev => prev.map(o => o.id === id ? { ...o, ...extraFields } : o));
-      if (viewOrder?.id === id) setViewOrder((p: any) => ({ ...p, ...extraFields }));
+      toast.error("Failed to update status: " + error.message);
+      setUpdatingId(null);
+      return;
     }
+    await insertTimeline(id, newStatus);
+    toast.success(`Order marked as ${newStatus.replace(/_/g, " ")}`);
+    await fetchOrders(true);
     setUpdatingId(null);
   };
 
-  // ── Mark payment complete (new action) ────────────────────────────────────
+  // ── Mark payment complete ─────────────────────────────────────────────────────
   const markPaymentComplete = async (id: string) => {
-    const now = new Date().toISOString();
-    const order = orders.find(o => o.id === id);
-    const history = [
-      ...(order?.status_history ?? []),
-      { status: "payment_complete", timestamp: now, message: TIMELINE_MESSAGES.payment_complete },
-    ];
-    const { error } = await supabase.from("orders").update({
-      payment_status: "paid",
-      status: "payment_complete",
-      status_history: history,
-    }).eq("id", id);
-    if (error) { toast.error("Failed to update payment"); return; }
+    if (updatingId === id) return;
+    setUpdatingId(id);
+    const { error } = await supabase.from("orders").update({ payment_status: "paid" }).eq("id", id);
+    if (error) {
+      toast.error("Failed to update payment: " + error.message);
+      setUpdatingId(null);
+      return;
+    }
+    const currentStatus = orders.find(o => o.id === id)?.status ?? "pending";
+    await insertTimeline(id, currentStatus, "Payment has been verified and completed");
     toast.success("Payment marked as complete ✓");
-    setOrders(prev => prev.map(o => o.id === id ? { ...o, payment_status: "paid", status: "payment_complete", status_history: history } : o));
-    if (viewOrder?.id === id) setViewOrder((p: any) => ({ ...p, payment_status: "paid", status: "payment_complete", status_history: history }));
+    await fetchOrders(true);
+    setUpdatingId(null);
   };
 
-  // ── Confirm shipping ──────────────────────────────────────────────────────
+  // ── Confirm shipping ──────────────────────────────────────────────────────────
   const confirmShipping = async () => {
     if (!trackingNumber.trim()) { toast.error("Please enter a tracking number"); return; }
-    const now = new Date().toISOString();
-    const history = [
-      ...(shippingModal?.status_history || []),
-      { status: "shipped", timestamp: now, message: "Order has been shipped" },
-    ];
+    if (!shippingModal) return;
+
     const courierInfo = COURIERS.find(c => c.id === courier);
-    const courierUrl  = courierInfo?.url ? `${courierInfo.url}${trackingNumber}` : null;
+    const courierUrl  = courierInfo?.url ? `${courierInfo.url}${trackingNumber.trim()}` : null;
+
     const { error } = await supabase.from("orders").update({
-      status: "shipped", status_history: history,
-      tracking_number: trackingNumber,
-      courier: courierInfo?.name, courier_url: courierUrl,
+      status:          "shipped",
+      tracking_number: trackingNumber.trim(),
+      courier:         courierInfo?.name ?? courier,
+      courier_url:     courierUrl,
     }).eq("id", shippingModal.id);
-    if (error) { toast.error("Failed to update shipping"); return; }
+
+    if (error) { toast.error("Failed to update shipping: " + error.message); return; }
+
+    await insertTimeline(shippingModal.id, "shipped", "Order has been shipped");
     toast.success("Order marked as shipped! 🚚");
-    const updated = { status: "shipped", status_history: history, tracking_number: trackingNumber, courier: courierInfo?.name, courier_url: courierUrl };
-    setOrders(prev => prev.map(o => o.id === shippingModal.id ? { ...o, ...updated } : o));
-    if (viewOrder?.id === shippingModal.id) setViewOrder((p: any) => ({ ...p, ...updated }));
-    setShippingModal(null); setTrackingNumber(""); setCourier("jnt");
+    await fetchOrders(true);
+
+    setShippingModal(null);
+    setTrackingNumber("");
+    setCourier("jnt");
   };
 
-  const getNextStatus = (current: string) => {
-    if (current === "cancelled" || current === "completed" || current === "payment_complete") return null;
-    const idx = statusFlow.indexOf(current);
-    if (idx === -1 || idx === statusFlow.length - 1) return null;
+  // ── Close shipping modal helper ───────────────────────────────────────────────
+  const closeShippingModal = () => {
+    setShippingModal(null);
+    setTrackingNumber("");
+    setCourier("jnt");
+  };
+
+  // ── Next status in flow ───────────────────────────────────────────────────────
+  const getNextStatus = (current: string): string | null => {
+    if (!current || current === "cancelled" || current === "completed") return null;
+    const idx  = statusFlow.indexOf(current);
+    if (idx === -1 || idx >= statusFlow.length - 2) return null;
     const next = statusFlow[idx + 1];
     return next === "cancelled" ? null : next;
   };
 
+  // ── Filtered list ─────────────────────────────────────────────────────────────
   const filtered = orders.filter(o => {
-    const matchSearch = (o.customer_name || "").toLowerCase().includes(search.toLowerCase());
+    const q = search.toLowerCase();
+    const matchSearch =
+      (o.customer_name  || "").toLowerCase().includes(q) ||
+      (o.customer_email || "").toLowerCase().includes(q) ||
+      (o.id             || "").toLowerCase().includes(q);
+
     if (showHidden) return matchSearch && o.is_deleted;
     return matchSearch && !o.is_deleted && (statusFilter === "all" || o.status === statusFilter);
   });
 
   const visibleOrders = orders.filter(o => !o.is_deleted);
   const totalRevenue  = visibleOrders.reduce((s, o) => s + Number(o.total || 0), 0);
-  const completed     = visibleOrders.filter(o => o.status === "completed" || o.status === "payment_complete").length;
+  const completed     = visibleOrders.filter(o => o.status === "completed").length;
   const pending       = visibleOrders.filter(o => o.status === "pending").length;
   const shipped       = visibleOrders.filter(o => ["shipped", "out_for_delivery"].includes(o.status)).length;
   const hiddenCount   = orders.filter(o => o.is_deleted).length;
 
+  // ─────────────────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen p-6 space-y-6 text-white"
+    <div
+      className="min-h-screen p-6 space-y-6 text-white"
       style={{ background: "linear-gradient(135deg,#0f1117,#141824,#0f1117)" }}>
 
       {/* Header */}
@@ -634,7 +671,7 @@ const { error: e3 } = await supabase
         </div>
       )}
 
-      {/* Hidden orders banner */}
+      {/* Hidden banner */}
       {showHidden && (
         <div className="flex items-center gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/20">
           <Trash2 size={16} className="text-red-400 shrink-0" />
@@ -649,8 +686,12 @@ const { error: e3 } = await supabase
         <div className="flex gap-3 mb-4 flex-wrap">
           <div className="relative flex-1 min-w-[200px]">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-            <Input placeholder="Search by customer name..." value={search} onChange={e => setSearch(e.target.value)}
-              className="pl-9 bg-white/5 border-white/10" />
+            <Input
+              placeholder="Search by name, email, or order ID…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-9 bg-white/5 border-white/10"
+            />
           </div>
 
           {!showHidden && (
@@ -660,7 +701,7 @@ const { error: e3 } = await supabase
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
-                {[...statusFlow, "payment_complete"].map(s => (
+                {statusFlow.map(s => (
                   <SelectItem key={s} value={s} className="capitalize">{s.replace(/_/g, " ")}</SelectItem>
                 ))}
               </SelectContent>
@@ -669,12 +710,12 @@ const { error: e3 } = await supabase
 
           <Button variant="outline" size="sm"
             onClick={() => { setShowHidden(h => !h); setStatusFilter("all"); }}
-            className={`gap-1.5 text-xs transition-all ${
-              showHidden
-                ? "bg-red-500/20 text-red-300 border-red-500/30 hover:bg-red-500/30"
-                : "bg-white/5 text-slate-400 border-white/10 hover:bg-white/10"
-            }`}>
-            {showHidden ? <><RotateCcw size={12} /> Back to Orders</> : <><Trash2 size={12} /> Hidden {hiddenCount > 0 && `(${hiddenCount})`}</>}
+            className={`gap-1.5 text-xs transition-all ${showHidden
+              ? "bg-red-500/20 text-red-300 border-red-500/30 hover:bg-red-500/30"
+              : "bg-white/5 text-slate-400 border-white/10 hover:bg-white/10"}`}>
+            {showHidden
+              ? <><RotateCcw size={12} /> Back to Orders</>
+              : <><Trash2 size={12} /> Hidden {hiddenCount > 0 && `(${hiddenCount})`}</>}
           </Button>
         </div>
 
@@ -701,11 +742,14 @@ const { error: e3 } = await supabase
                   </TableCell>
                 </TableRow>
               ) : filtered.map(o => {
-                const next = getNextStatus(o.status);
+                const next       = getNextStatus(o.status);
+                const isUpdating = updatingId === o.id;
                 return (
                   <TableRow key={o.id}
                     className={`border-white/5 hover:bg-white/5 transition-all ${o.is_deleted ? "opacity-50" : ""}`}>
-                    <TableCell className="font-mono text-xs text-indigo-400">#{o.id.slice(0, 8).toUpperCase()}</TableCell>
+                    <TableCell className="font-mono text-xs text-indigo-400">
+                      #{o.id.slice(0, 8).toUpperCase()}
+                    </TableCell>
                     <TableCell>
                       <p className="text-sm font-medium">{o.customer_name}</p>
                       <p className="text-xs text-slate-500">{o.customer_email}</p>
@@ -722,12 +766,12 @@ const { error: e3 } = await supabase
                       </span>
                     </TableCell>
                     <TableCell className="text-xs">
-                      {o.tracking_number ? (
-                        <div>
-                          <p className="font-mono text-indigo-300">{o.tracking_number}</p>
-                          <p className="text-slate-500 text-[10px]">{o.courier}</p>
-                        </div>
-                      ) : <span className="text-slate-600">—</span>}
+                      {o.tracking_number
+                        ? <div>
+                            <p className="font-mono text-indigo-300">{o.tracking_number}</p>
+                            <p className="text-slate-500 text-[10px]">{o.courier}</p>
+                          </div>
+                        : <span className="text-slate-600">—</span>}
                     </TableCell>
                     <TableCell className="text-slate-400 text-xs">
                       {new Date(o.created_at).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}
@@ -735,32 +779,27 @@ const { error: e3 } = await supabase
                     <TableCell>
                       <div className="flex items-center gap-1 flex-wrap">
                         {!o.is_deleted && next && (
-                          <Button size="sm" variant="ghost" disabled={updatingId === o.id}
+                          <Button size="sm" variant="ghost" disabled={isUpdating}
                             onClick={() => updateStatus(o.id, next)}
                             className="text-xs h-7 px-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 gap-1">
-                            <ChevronRight size={12} />
+                            {isUpdating ? <RefreshCw size={11} className="animate-spin" /> : <ChevronRight size={12} />}
                             {next === "shipped" ? "Ship" : next.replace(/_/g, " ")}
                           </Button>
                         )}
-                        {/* Payment Complete button — show when status is approved/processing and not yet payment_complete */}
-                        {!o.is_deleted && o.payment_status !== "paid" && !["cancelled", "payment_complete"].includes(o.status) && (
-                          <Button size="sm" variant="ghost"
+                        {!o.is_deleted && o.payment_status !== "paid" && o.status !== "cancelled" && (
+                          <Button size="sm" variant="ghost" disabled={isUpdating}
                             onClick={() => markPaymentComplete(o.id)}
                             className="text-xs h-7 px-2 text-teal-400 hover:text-teal-300 hover:bg-teal-500/10 gap-1">
                             <CheckCircle size={12} /> Pay ✓
                           </Button>
                         )}
                         {!o.is_deleted && (
-                          <Button size="icon" variant="ghost" className="h-7 w-7 hover:text-blue-400"
-                            onClick={() => setViewOrder(o)}>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 hover:text-blue-400" onClick={() => setViewOrder(o)}>
                             <Eye size={13} />
                           </Button>
                         )}
-                        {/* Print receipt button */}
                         {!o.is_deleted && (
-                          <Button size="icon" variant="ghost" className="h-7 w-7 hover:text-indigo-400"
-                            title="Print Receipt"
-                            onClick={() => setReceiptOrder(o)}>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 hover:text-indigo-400" title="Print Receipt" onClick={() => setReceiptOrder(o)}>
                             <Printer size={13} />
                           </Button>
                         )}
@@ -786,10 +825,9 @@ const { error: e3 } = await supabase
         </div>
       </div>
 
-      {/* Receipt Modal */}
+      {/* ── Modals ── */}
       <ReceiptModal order={receiptOrder} onClose={() => setReceiptOrder(null)} />
 
-      {/* Delete confirmation modal */}
       <DeleteConfirmModal
         order={deleteModal}
         onClose={() => setDeleteModal(null)}
@@ -805,14 +843,12 @@ const { error: e3 } = await supabase
               <Package size={16} className="text-indigo-400" />
               Order #{viewOrder?.id?.slice(0, 8).toUpperCase()}
             </span>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="gap-1.5 text-xs text-indigo-400 hover:text-indigo-300"
-              onClick={() => { setReceiptOrder(viewOrder); }}>
+            <Button size="sm" variant="ghost" className="gap-1.5 text-xs text-indigo-400 hover:text-indigo-300"
+              onClick={() => setReceiptOrder(viewOrder)}>
               <Printer size={13} /> Receipt
             </Button>
           </DialogTitle>
+
           {viewOrder && (
             <div className="text-sm space-y-5">
               <div className="grid grid-cols-2 gap-3">
@@ -845,13 +881,12 @@ const { error: e3 } = await supabase
                     {viewOrder.payment_status || "pending"}
                   </span>
                 </div>
-                {/* Mark Payment Complete button inside modal */}
-                {viewOrder.payment_status !== "paid" && !["cancelled", "payment_complete"].includes(viewOrder.status) && (
-                  <Button
-                    size="sm"
+                {viewOrder.payment_status !== "paid" && viewOrder.status !== "cancelled" && (
+                  <Button size="sm" disabled={updatingId === viewOrder.id}
                     className="ml-auto bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 border border-teal-500/20 text-xs gap-1.5"
                     onClick={() => markPaymentComplete(viewOrder.id)}>
-                    <CheckCircle size={12} /> Mark Payment Complete
+                    {updatingId === viewOrder.id ? <RefreshCw size={12} className="animate-spin" /> : <CheckCircle size={12} />}
+                    Mark Payment Complete
                   </Button>
                 )}
               </div>
@@ -876,21 +911,21 @@ const { error: e3 } = await supabase
               {/* Timeline */}
               <div>
                 <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-3">Order Timeline</p>
-                {viewOrder.order_timeline && viewOrder.order_timeline.length > 0 ? (
+                {viewOrder.order_timeline?.length > 0 ? (
                   <div className="space-y-0">
                     {[...viewOrder.order_timeline]
                       .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                      .map((entry: any, i: number) => (
-                        <div key={entry.id} className="flex items-start gap-3">
+                      .map((entry: any, i: number, arr: any[]) => (
+                        <div key={entry.id ?? i} className="flex items-start gap-3">
                           <div className="flex flex-col items-center">
                             <div className={`w-3 h-3 rounded-full mt-0.5 shrink-0 ring-2 ${i === 0 ? "bg-indigo-400 ring-indigo-400/30" : "bg-emerald-400 ring-emerald-400/20"}`} />
-                            {i < viewOrder.order_timeline.length - 1 && <div className="w-px h-6 bg-emerald-400/20" />}
+                            {i < arr.length - 1 && <div className="w-px h-6 bg-emerald-400/20" />}
                           </div>
                           <div className="pb-1">
                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${STATUS_COLORS[entry.status] || "bg-white/10 text-white"}`}>
                               {STATUS_ICONS[entry.status]} {entry.status.replace(/_/g, " ")}
                             </span>
-                            <p className="text-xs text-slate-400 mt-0.5">{entry.message}</p>
+                            {entry.message && <p className="text-xs text-slate-400 mt-0.5">{entry.message}</p>}
                             <p className="text-[10px] text-slate-600 mt-0.5">
                               {new Date(entry.created_at).toLocaleString("en-PH", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                             </p>
@@ -900,12 +935,10 @@ const { error: e3 } = await supabase
                   </div>
                 ) : (
                   <div className="space-y-0">
-                    {[...statusFlow, "payment_complete"].filter(s => s !== "cancelled").map((s, i, arr) => {
-                      const history    = viewOrder.status_history || [];
-                      const entry      = history.find((h: any) => h.status === s);
-                      const currentIdx = [...statusFlow, "payment_complete"].indexOf(viewOrder.status);
-                      const stepIdx    = [...statusFlow, "payment_complete"].indexOf(s);
-                      const isDone     = currentIdx >= stepIdx && viewOrder.status !== "cancelled";
+                    {statusFlow.filter(s => s !== "cancelled").map((s, i, arr) => {
+                      const currentIdx = statusFlow.indexOf(viewOrder.status);
+                      const stepIdx    = statusFlow.indexOf(s);
+                      const isDone     = viewOrder.status !== "cancelled" && currentIdx >= stepIdx;
                       const isCurrent  = viewOrder.status === s;
                       return (
                         <div key={s} className="flex items-start gap-3">
@@ -917,9 +950,6 @@ const { error: e3 } = await supabase
                             <p className={`text-xs capitalize font-medium ${isCurrent ? "text-indigo-400" : isDone ? "text-emerald-400" : "text-slate-600"}`}>
                               {s.replace(/_/g, " ")}
                             </p>
-                            {entry?.timestamp && (
-                              <p className="text-[10px] text-slate-500">{new Date(entry.timestamp).toLocaleString()}</p>
-                            )}
                           </div>
                         </div>
                       );
@@ -942,15 +972,10 @@ const { error: e3 } = await supabase
                         <div className="flex-1 min-w-0">
                           <p className="text-xs text-slate-200 font-medium truncate">{item.product_name ?? item.name}</p>
                           <div className="flex gap-1.5 mt-0.5 flex-wrap">
-                            {item.selected_size && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-slate-400">{item.selected_size}</span>
-                            )}
+                            {item.selected_size  && <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-slate-400">{item.selected_size}</span>}
                             {item.selected_color && (
                               <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-slate-400 flex items-center gap-1">
-                                {item.selected_color_hex && (
-                                  <span style={{ background: item.selected_color_hex }}
-                                    className="w-2 h-2 rounded-full border border-white/20 inline-block" />
-                                )}
+                                {item.selected_color_hex && <span style={{ background: item.selected_color_hex }} className="w-2 h-2 rounded-full border border-white/20 inline-block" />}
                                 {item.selected_color}
                               </span>
                             )}
@@ -974,7 +999,13 @@ const { error: e3 } = await supabase
                   </p>
                   <p className="text-slate-300 text-xs leading-relaxed">
                     {typeof viewOrder.shipping_address === "object"
-                      ? `${viewOrder.shipping_address.name}, ${viewOrder.shipping_address.address}, ${viewOrder.shipping_address.city}, ${viewOrder.shipping_address.province} ${viewOrder.shipping_address.zip}`
+                      ? [
+                          viewOrder.shipping_address.name,
+                          viewOrder.shipping_address.address,
+                          viewOrder.shipping_address.city,
+                          viewOrder.shipping_address.province,
+                          viewOrder.shipping_address.zip,
+                        ].filter(Boolean).join(", ")
                       : viewOrder.shipping_address}
                   </p>
                 </div>
@@ -984,13 +1015,17 @@ const { error: e3 } = await supabase
               <div className="space-y-2 pt-1">
                 {getNextStatus(viewOrder.status) && (
                   <Button className="w-full bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/20"
+                    disabled={updatingId === viewOrder.id}
                     onClick={() => updateStatus(viewOrder.id, getNextStatus(viewOrder.status)!)}>
-                    <ChevronRight size={14} className="mr-1" />
+                    {updatingId === viewOrder.id
+                      ? <RefreshCw size={14} className="mr-1 animate-spin" />
+                      : <ChevronRight size={14} className="mr-1" />}
                     Mark as {getNextStatus(viewOrder.status)?.replace(/_/g, " ")} →
                   </Button>
                 )}
-                {!["completed", "cancelled", "payment_complete"].includes(viewOrder.status) && (
-                  <Button variant="ghost" className="w-full text-red-400 hover:bg-red-500/10 border border-red-500/10"
+                {!["completed", "cancelled"].includes(viewOrder.status) && (
+                  <Button variant="ghost" disabled={updatingId === viewOrder.id}
+                    className="w-full text-red-400 hover:bg-red-500/10 border border-red-500/10"
                     onClick={() => { updateStatus(viewOrder.id, "cancelled"); setViewOrder(null); }}>
                     <AlertCircle size={14} className="mr-1" /> Cancel Order
                   </Button>
@@ -1002,42 +1037,107 @@ const { error: e3 } = await supabase
       </Dialog>
 
       {/* Shipping Modal */}
-      <Dialog open={!!shippingModal} onOpenChange={() => { setShippingModal(null); setTrackingNumber(""); }}>
+      <Dialog open={!!shippingModal} onOpenChange={closeShippingModal}>
         <DialogContent className="bg-[#111827] text-white border-white/10 max-w-sm">
           <DialogTitle className="flex items-center gap-2">
             <Truck size={16} className="text-indigo-400" /> Ship Order
           </DialogTitle>
+
           <div className="space-y-4 text-sm">
+            {/* Order summary */}
             <div className="p-3 rounded-xl bg-white/5 border border-white/10">
               <p className="text-xs text-slate-400 mb-0.5">Shipping for</p>
               <p className="font-medium">{shippingModal?.customer_name}</p>
               <p className="text-xs text-slate-400">Order #{shippingModal?.id?.slice(0, 8).toUpperCase()}</p>
             </div>
+
+            {/* Courier selector */}
             <div>
               <label className="text-xs text-slate-400 block mb-1.5">Courier</label>
-              <Select value={courier} onValueChange={setCourier}>
-                <SelectTrigger className="bg-white/5 border-white/10"><SelectValue /></SelectTrigger>
+              <Select value={courier} onValueChange={val => { setCourier(val); setTrackingNumber(""); }}>
+                <SelectTrigger className="bg-white/5 border-white/10">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  {COURIERS.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  {/* Domestic group */}
+                  <div className="px-2 py-1.5 text-[10px] text-slate-500 uppercase tracking-wider">
+                    Domestic
+                  </div>
+                  {COURIERS_DOMESTIC.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                  {/* International group */}
+                  <div className="px-2 py-1.5 text-[10px] text-slate-500 uppercase tracking-wider border-t border-white/10 mt-1">
+                    International
+                  </div>
+                  {COURIERS_INTERNATIONAL.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Tracking number */}
             <div>
-              <label className="text-xs text-slate-400 block mb-1.5">Tracking Number</label>
-              <Input value={trackingNumber} onChange={e => setTrackingNumber(e.target.value)}
-                placeholder="e.g. 1234567890"
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs text-slate-400">Tracking Number</label>
+                <button
+                  type="button"
+                  onClick={() => setTrackingNumber(generateTrackingNumber(courier))}
+                  className="flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300 font-medium transition-colors">
+                  <Zap size={11} /> Auto-generate
+                </button>
+              </div>
+              <Input
+                value={trackingNumber}
+                onChange={e => setTrackingNumber(e.target.value)}
+                placeholder={
+                  courier === "jnt"       ? "e.g. 600-1234-5678901" :
+                  courier === "lbc"       ? "e.g. 10000000000"       :
+                  courier === "ninjavan"  ? "e.g. NVPH-0000000000"   :
+                  courier === "dhl"       ? "e.g. JD000000000000000000" :
+                  courier === "fedex"     ? "e.g. 000000000000"      :
+                  courier === "ups"       ? "e.g. 1ZXXXXXX0000000000":
+                  courier === "ems"       ? "e.g. EE00000000PH"      :
+                  courier === "cainiao"   ? "e.g. EA00000000CN"      :
+                  courier === "sfexpress" ? "e.g. SF0000000000"      :
+                  courier === "yanwen"    ? "e.g. UE00000000YP"      :
+                  courier === "spx"       ? "e.g. SPX-000000000000"  :
+                  "Enter tracking number"
+                }
                 className="bg-white/5 border-white/10 font-mono"
-                onKeyDown={e => e.key === "Enter" && confirmShipping()} />
+                onKeyDown={e => e.key === "Enter" && confirmShipping()}
+              />
+              {/* Format hint */}
+              <p className="text-[10px] text-slate-600 mt-1">
+                {courier === "jnt"       && "J&T format: 6XX-XXXX-XXXXXXX"}
+                {courier === "lbc"       && "LBC format: 11 digits starting with 1"}
+                {courier === "ninjavan"  && "Ninja Van format: NVPH-XXXXXXXXXX"}
+                {courier === "grab"      && "GrabExpress internal reference"}
+                {courier === "lalamove"  && "Lalamove order reference"}
+                {courier === "dhl"       && "DHL eCommerce format: JD + 18 digits"}
+                {courier === "fedex"     && "FedEx format: 12 digit number"}
+                {courier === "ups"       && "UPS format: 1Z + 6 letters/digits + 10 digits"}
+                {courier === "ems"       && "EMS Philippines: EE + 8 digits + PH"}
+                {courier === "cainiao"   && "Cainiao/AliExpress: EA + 8 digits + CN"}
+                {courier === "sfexpress" && "SF Express: SF + 10 digits"}
+                {courier === "yanwen"    && "Yanwen/4PX: UE + 8 digits + YP"}
+                {courier === "spx"       && "Shopee Xpress Intl: SPX- + 12 digits"}
+              </p>
             </div>
+
             <p className="text-[11px] text-slate-500">
               💡 The customer will see this tracking info instantly on their orders page.
             </p>
+
             <div className="flex gap-2">
-              <Button className="flex-1 bg-indigo-600 hover:bg-indigo-500 gap-2" onClick={confirmShipping}>
+              <Button
+                className="flex-1 bg-indigo-600 hover:bg-indigo-500 gap-2"
+                onClick={confirmShipping}
+                disabled={!trackingNumber.trim()}>
                 <Truck size={14} /> Confirm Shipment
               </Button>
-              <Button variant="ghost" className="flex-1 border border-white/10"
-                onClick={() => { setShippingModal(null); setTrackingNumber(""); }}>
+              <Button variant="ghost" className="flex-1 border border-white/10" onClick={closeShippingModal}>
                 Cancel
               </Button>
             </div>

@@ -98,17 +98,17 @@ const SignInPage = () => {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
-    supabase
-      .from("profiles")
-      .select("role")
-      .eq("user_id", user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data?.role === "admin") navigate("/admin", { replace: true });
-        else navigate("/", { replace: true });
-      });
-  }, [user]);
+  if (!user) return;
+  supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)        // ✅ use "id" not "user_id"
+    .maybeSingle()
+    .then(({ data }) => {
+      if (data?.role === "admin") navigate("/admin", { replace: true });
+      else navigate("/", { replace: true });
+    });
+}, [user]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
